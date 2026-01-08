@@ -1,0 +1,21 @@
+# Development files
+*.test.mjs
+*.spec.mjs
+test/
+tests/
+examples/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# README (included by default)
+# package.json (included by default)

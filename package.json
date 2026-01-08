@@ -1,0 +1,73 @@
+{
+  "name": "@skej/studio",
+  "version": "1.0.0",
+  "description": "Manifest-based LLM executor for Studio agents with CLI",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "skej": "./dist/cli/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "clean": "rm -rf dist coverage",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "llm",
+    "executor",
+    "agent",
+    "studio",
+    "anthropic",
+    "openai",
+    "bedrock",
+    "deepseek",
+    "cli",
+    "skej"
+  ],
+  "author": "Skej",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skej/studio-node.git"
+  },
+  "bugs": {
+    "url": "https://github.com/skej/studio-node/issues"
+  },
+  "homepage": "https://github.com/skej/studio-node#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@aws-sdk/client-bedrock-runtime": "^3.705.0",
+    "commander": "^12.1.0",
+    "openai": "^4.77.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/ui": "^2.1.8",
+    "typescript": "^5.3.3",
+    "vitest": "^2.1.8"
+  }
+}
