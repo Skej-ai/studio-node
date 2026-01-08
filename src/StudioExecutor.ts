@@ -161,7 +161,7 @@ export class StudioExecutor {
     try {
       // For TypeScript/ESM, we need to use dynamic import
       const fileUrl = new URL(`file://${filePath}`);
-      const module = await import(fileUrl.href);
+      const module = await import(/* webpackIgnore: true */ fileUrl.href);
 
       const manifest = module.default || module[Object.keys(module)[0]];
 
@@ -226,7 +226,7 @@ export class StudioExecutor {
         try {
           const filePath = join(outputDir, file);
           const fileUrl = new URL(`file://${filePath}`);
-          const module = await import(fileUrl.href);
+          const module = await import(/* webpackIgnore: true */ fileUrl.href);
           const manifest = module.default || module[Object.keys(module)[0]];
 
           if (!manifest) continue;
