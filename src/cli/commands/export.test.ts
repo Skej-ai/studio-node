@@ -9,7 +9,7 @@ import type { StudioConfig } from '../utils/config.js';
 // Mock modules
 vi.mock('../utils/config.js', () => ({
   loadConfig: vi.fn(),
-  resolveOutputDir: vi.fn((dir) => `/resolved/${dir}`),
+  resolveOutputDir: vi.fn(async (dir) => `/resolved/${dir}`),
 }));
 
 vi.mock('../utils/api.js', () => ({

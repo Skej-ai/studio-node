@@ -352,7 +352,7 @@ describe('Integration Tests', () => {
   });
 
   describe('Scenario handling', () => {
-    it('should auto-inject scenario tools', async () => {
+    it('should store scenarios from manifest', async () => {
       const manifestWithScenarios = {
         ...mockManifest,
         scenarios: [
@@ -374,12 +374,10 @@ describe('Integration Tests', () => {
         credentials: mockCredentials
       });
 
-      // Should have 4 tools: search, finish_agent_run, fetch_available_scenarios, fetch_scenario_specific_instructions
-      expect(executor['allToolDefs']).toHaveLength(4);
-
-      const scenarioToolNames = executor['scenarioTools'].map(t => t.function.name);
-      expect(scenarioToolNames).toContain('fetch_available_scenarios');
-      expect(scenarioToolNames).toContain('fetch_scenario_specific_instructions');
+      // Should only have manifest tools (no auto-injection)
+      expect(executor['allToolDefs']).toHaveLength(2);
+      expect(executor['scenarios']).toHaveLength(1);
+      expect(executor['scenarios'][0].name).toBe('booking');
     });
 
     it('should handle fetch_available_scenarios during execution', async () => {

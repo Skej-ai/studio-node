@@ -9,8 +9,6 @@ import { loadConfig, type StudioConfig } from './cli/utils/config.js';
 import { createApiClient, StudioApiClient } from './cli/utils/api.js';
 import { createExecutor } from './executorFactory.js';
 import type { ProviderCredentials, ExecutionResult, InvokeOptions, Manifest } from './types.js';
-import { join, resolve } from 'path';
-import { readdir } from 'fs/promises';
 
 export interface StudioExecutorConfig {
   credentials: ProviderCredentials;
@@ -22,18 +20,13 @@ export interface ExecuteOptions extends InvokeOptions {
   apiMode?: boolean; // Override config apiMode for this execution
   tracing?: {
     enabled: boolean;
-    apiUrl?: string;
-    tenantId?: string;
-    serviceKey?: string;
-    promptName?: string;
-    executionId?: string;
-    filters?: {
-      teamId?: string;
-      userId?: string;
-      resourceId?: string;
-      tags?: string[];
-    };
+    tags?: string[];
   };
+  files?: Array<{
+    type: string;
+    image_url?: { url: string };
+    input_audio?: { data: string; format: string };
+  }>;
 }
 
 /**
@@ -113,13 +106,29 @@ export class StudioExecutor {
       ? await this.loadPromptFromApi(promptName)
       : await this.loadPromptFromFile(promptName);
 
+    // Enrich tracing config with studio config and promptName
+    // Callers only provide: enabled, tags
+    // Infrastructure config is auto-populated from studio config and method params
+    const enrichedOptions = {
+      ...options,
+      tracing: options?.tracing ? {
+        enabled: options.tracing.enabled,
+        apiUrl: this.config.apiUrl,
+        tenantId: this.tenantId,
+        serviceKey: this.config.serviceKey,
+        promptName: promptName,
+        tags: options.tracing.tags,
+      } : undefined,
+      files: options?.files, // Pass files through for vision/audio
+    };
+
     // Create provider-specific executor
     const executor = await createExecutor({
       manifest,
       credentials: this.credentials,
       variables,
       toolRouter,
-      ...options,
+      ...enrichedOptions,
     });
 
     // Execute
@@ -151,6 +160,17 @@ export class StudioExecutor {
    * Load prompt from local filesystem
    */
   private async loadPromptFromFile(promptName: string): Promise<Manifest> {
+    // Check if we're in Node.js environment
+    if (typeof process === 'undefined' || !process.versions || !process.versions.node) {
+      throw new Error(
+        'Filesystem mode is only supported in Node.js environment. ' +
+        'Use apiMode: true in your config to load prompts from the API in browser environments.'
+      );
+    }
+
+    // Dynamically import path module (only available in Node.js)
+    const { join, resolve } = await import('path');
+
     // Sanitize filename (same logic as export command)
     const filename = promptName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
 
@@ -214,6 +234,18 @@ export class StudioExecutor {
     }
 
     // Filesystem mode - read from local directory
+    // Check if we're in Node.js environment
+    if (typeof process === 'undefined' || !process.versions || !process.versions.node) {
+      throw new Error(
+        'Filesystem mode is only supported in Node.js environment. ' +
+        'Use apiMode: true in your config to load prompts from the API in browser environments.'
+      );
+    }
+
+    // Dynamically import Node.js modules
+    const { join, resolve } = await import('path');
+    const { readdir } = await import('fs/promises');
+
     const outputDir = resolve(this.config.outputDir);
 
     try {

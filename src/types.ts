@@ -172,13 +172,7 @@ export interface TracingConfig {
   tenantId?: string;
   serviceKey?: string;
   promptName?: string;
-  executionId?: string;
-  filters?: {
-    teamId?: string;
-    userId?: string;
-    resourceId?: string;
-    tags?: string[];
-  };
+  tags?: string[];
 }
 
 /**
@@ -195,6 +189,11 @@ export interface BaseExecutorConfig {
   executorFactory?: (config: BaseExecutorConfig) => Promise<any>;
   imageCache?: any;
   tracing?: TracingConfig;
+  files?: Array<{
+    type: string;
+    image_url?: { url: string };
+    input_audio?: { data: string; format: string };
+  }>;
 }
 
 /**

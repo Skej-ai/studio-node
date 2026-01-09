@@ -168,7 +168,7 @@ describe('BaseExecutor', () => {
       expect(executor['primaryModelConfig'].metadata.temperature).toBe(1.0);
     });
 
-    it('should auto-inject scenario tools when scenarios exist', () => {
+    it('should store scenarios when they exist', () => {
       const manifestWithScenarios = {
         ...mockManifest,
         scenarios: [
@@ -188,15 +188,10 @@ describe('BaseExecutor', () => {
       });
 
       expect(executor['scenarios']).toHaveLength(1);
-      expect(executor['scenarioTools']).toHaveLength(2);
-      expect(executor['allToolDefs']).toHaveLength(4); // 2 manifest + 2 scenario
-
-      const scenarioToolNames = executor['scenarioTools'].map(t => t.function.name);
-      expect(scenarioToolNames).toContain('fetch_available_scenarios');
-      expect(scenarioToolNames).toContain('fetch_scenario_specific_instructions');
+      expect(executor['allToolDefs']).toHaveLength(2); // Only manifest tools (no auto-injection)
     });
 
-    it('should not inject scenario tools when scenarios is empty', () => {
+    it('should not have scenarios when scenarios is empty', () => {
       const executor = new TestExecutor({
         manifest: mockManifest,
         variables: { assistantName: 'Claude', task: 'testing' },
@@ -205,7 +200,6 @@ describe('BaseExecutor', () => {
       });
 
       expect(executor['scenarios']).toHaveLength(0);
-      expect(executor['scenarioTools']).toHaveLength(0);
       expect(executor['allToolDefs']).toHaveLength(2); // Only manifest tools
     });
   });

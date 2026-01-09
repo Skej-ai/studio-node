@@ -114,7 +114,7 @@ async function exportSinglePrompt(
     console.log('');
 
     // Create output directory
-    const outputDir = resolveOutputDir(config.outputDir);
+    const outputDir = await resolveOutputDir(config.outputDir);
     await mkdir(outputDir, { recursive: true });
 
     // Export prompt from API
@@ -214,7 +214,7 @@ export async function exportCommand(options: ExportOptions): Promise<void> {
     }
 
     // Create output directory
-    const outputDir = resolveOutputDir(config.outputDir);
+    const outputDir = await resolveOutputDir(config.outputDir);
     await mkdir(outputDir, { recursive: true });
 
     // Create temporary directory for atomic writes

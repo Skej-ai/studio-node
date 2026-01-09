@@ -4,10 +4,6 @@
  * Handles studio.config.js loading and creation
  */
 
-import { writeFile, access } from 'fs/promises';
-import { join, resolve } from 'path';
-import { pathToFileURL } from 'url';
-
 export interface StudioConfig {
   tenantId: string;
   serviceKey: string;
@@ -19,9 +15,19 @@ export interface StudioConfig {
 /**
  * Get config file path (checks both .js and .ts)
  */
-export async function getConfigPath(cwd: string = process.cwd()): Promise<string | null> {
-  const jsPath = join(cwd, 'studio.config.js');
-  const tsPath = join(cwd, 'studio.config.ts');
+export async function getConfigPath(cwd?: string): Promise<string | null> {
+  // Check if we're in Node.js environment
+  if (typeof process === 'undefined' || !process.versions || !process.versions.node) {
+    throw new Error('Config file operations are only supported in Node.js environment.');
+  }
+
+  // Dynamically import Node.js modules
+  const { join } = await import('path');
+  const { access } = await import('fs/promises');
+
+  const workingDir = cwd || process.cwd();
+  const jsPath = join(workingDir, 'studio.config.js');
+  const tsPath = join(workingDir, 'studio.config.ts');
 
   try {
     await access(jsPath);
@@ -39,7 +45,7 @@ export async function getConfigPath(cwd: string = process.cwd()): Promise<string
 /**
  * Check if config file exists
  */
-export async function configExists(cwd: string = process.cwd()): Promise<boolean> {
+export async function configExists(cwd?: string): Promise<boolean> {
   const path = await getConfigPath(cwd);
   return path !== null;
 }
@@ -47,7 +53,15 @@ export async function configExists(cwd: string = process.cwd()): Promise<boolean
 /**
  * Load configuration from studio.config.js or studio.config.ts
  */
-export async function loadConfig(cwd: string = process.cwd()): Promise<StudioConfig | null> {
+export async function loadConfig(cwd?: string): Promise<StudioConfig | null> {
+  // Check if we're in Node.js environment
+  if (typeof process === 'undefined' || !process.versions || !process.versions.node) {
+    throw new Error('Config file operations are only supported in Node.js environment.');
+  }
+
+  // Dynamically import Node.js modules
+  const { pathToFileURL } = await import('url');
+
   const configPath = await getConfigPath(cwd);
 
   if (!configPath) {
@@ -89,9 +103,19 @@ export async function createConfig(options: {
   typescript?: boolean;
   cwd?: string;
 }): Promise<string> {
-  const { apiUrl, outputDir, typescript = false, cwd = process.cwd() } = options;
+  // Check if we're in Node.js environment
+  if (typeof process === 'undefined' || !process.versions || !process.versions.node) {
+    throw new Error('Config file operations are only supported in Node.js environment.');
+  }
+
+  // Dynamically import Node.js modules
+  const { join } = await import('path');
+  const { writeFile } = await import('fs/promises');
+
+  const { apiUrl, outputDir, typescript = false, cwd } = options;
+  const workingDir = cwd || process.cwd();
   const extension = typescript ? 'ts' : 'js';
-  const configPath = join(cwd, `studio.config.${extension}`);
+  const configPath = join(workingDir, `studio.config.${extension}`);
 
   const jsTemplate = `/**
  * Studio Configuration
@@ -172,6 +196,14 @@ export default config;
 /**
  * Resolve output directory path
  */
-export function resolveOutputDir(outputDir: string, cwd: string = process.cwd()): string {
-  return resolve(cwd, outputDir);
+export async function resolveOutputDir(outputDir: string, cwd?: string): Promise<string> {
+  // Check if we're in Node.js environment
+  if (typeof process === 'undefined' || !process.versions || !process.versions.node) {
+    throw new Error('Path operations are only supported in Node.js environment.');
+  }
+
+  // Dynamically import Node.js modules
+  const { resolve } = await import('path');
+  const workingDir = cwd || process.cwd();
+  return resolve(workingDir, outputDir);
 }

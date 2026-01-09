@@ -237,7 +237,7 @@ describe('StudioExecutor', () => {
       });
 
       // Force API mode via options
-      await executor.execute('test-prompt', { input: 'test' }, { apiMode: true });
+      await executor.execute('test-prompt', { input: 'test' }, {}, { apiMode: true });
 
       expect(mockClient.exportPrompt).toHaveBeenCalledWith('test-prompt', false);
     });
@@ -290,12 +290,12 @@ describe('StudioExecutor', () => {
         config: { ...mockConfig, apiMode: true },
       });
 
-      const toolRouter = vi.fn();
+      const toolRouter = { testTool: { execute: vi.fn() } };
 
       await executor.execute(
         'test-prompt',
         { input: 'test' },
-        { toolRouter }
+        toolRouter
       );
 
       const createExecutorCall = vi.mocked(createExecutor).mock.calls[0][0];
