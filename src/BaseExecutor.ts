@@ -622,9 +622,16 @@ export default class BaseExecutor {
         ? [...this.messages.slice(0, lastAssistantIndex), ...this.messages.slice(lastAssistantIndex + 1)]
         : this.messages;
 
+      // Skip first 2 messages (system and initial user) since they're in the manifest
+      // Only send the conversation that happened after: tool calls, tool results, subsequent LLM responses
+      const conversationMessages = messagesWithoutOutput.slice(2);
+
       const payload = {
         promptName: this.tracing.promptName || 'unknown',
-        messages: messagesWithoutOutput, // Messages without the last assistant message
+        manifest: this.manifest, // Send original manifest with chunks/blocks
+        etag: this.tracing.etag || null, // Manifest version
+        variables: this.variables, // Actual variable values used
+        messages: conversationMessages, // Only conversation after initial prompt (from index 2 onwards)
         output: output, // Last AI message
         inputTokens: turnUsage.input_tokens,
         outputTokens: turnUsage.output_tokens,

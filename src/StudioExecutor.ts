@@ -101,12 +101,15 @@ export class StudioExecutor {
       ? options.apiMode
       : this.config.apiMode;
 
-    // Load prompt manifest
-    const manifest = useApi
+    // Load prompt manifest with etag
+    const exportedPrompt = useApi
       ? await this.loadPromptFromApi(promptName)
       : await this.loadPromptFromFile(promptName);
 
-    // Enrich tracing config with studio config and promptName
+    const manifest = exportedPrompt.manifest;
+    const etag = exportedPrompt.etag;
+
+    // Enrich tracing config with studio config, promptName, and etag
     // Callers only provide: enabled, tags
     // Infrastructure config is auto-populated from studio config and method params
     const enrichedOptions = {
@@ -117,6 +120,7 @@ export class StudioExecutor {
         tenantId: this.tenantId,
         serviceKey: this.config.serviceKey,
         promptName: promptName,
+        etag: etag,
         tags: options.tracing.tags,
       } : undefined,
       files: options?.files, // Pass files through for vision/audio
@@ -138,19 +142,21 @@ export class StudioExecutor {
   /**
    * Load prompt from API
    * Uses export endpoint with createVersion=false to get the same manifest schema as files
+   * Returns { manifest, etag, exportedAt }
    */
-  private async loadPromptFromApi(promptName: string): Promise<Manifest> {
+  private async loadPromptFromApi(promptName: string): Promise<{ manifest: Manifest; etag: string; exportedAt: string }> {
     // Use export API with createVersion=false to avoid creating version snapshots
     const exportResponse = await this.client.exportPrompt(promptName, false);
 
     // API returns { manifest, etag, exportedAt }
-    return exportResponse.data.manifest;
+    return exportResponse.data;
   }
 
   /**
    * Load prompt from local filesystem
+   * Returns { manifest, etag, exportedAt }
    */
-  private async loadPromptFromFile(promptName: string): Promise<Manifest> {
+  private async loadPromptFromFile(promptName: string): Promise<{ manifest: Manifest; etag: string; exportedAt: string }> {
     // Check if we're in Node.js environment
     if (typeof process === 'undefined' || !process.versions || !process.versions.node) {
       throw new Error(
@@ -181,8 +187,7 @@ export class StudioExecutor {
       }
 
       // File exports { manifest, etag, exportedAt }
-      // Extract just the manifest
-      return exported.manifest;
+      return exported;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND' ||
           (error as NodeJS.ErrnoException).code === 'ENOENT') {

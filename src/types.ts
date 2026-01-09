@@ -204,6 +204,7 @@ export interface TracingConfig {
   tenantId?: string;
   serviceKey?: string;
   promptName?: string;
+  etag?: string;
   tags?: string[];
 }
 
