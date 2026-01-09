@@ -142,18 +142,9 @@ export class StudioExecutor {
   private async loadPromptFromApi(promptName: string): Promise<Manifest> {
     // Use export API with createVersion=false to avoid creating version snapshots
     const exportResponse = await this.client.exportPrompt(promptName, false);
-    const manifest = exportResponse.data.manifest;
 
-    // Return manifest in same format as exported files
-    return {
-      systemMessage: manifest.systemMessage,
-      userMessage: manifest.userMessage,
-      variables: manifest.variables,
-      toolDefs: manifest.toolDefs,
-      scenarios: manifest.scenarios || [],
-      models: manifest.models,
-      modelSampling: manifest.modelSampling,
-    };
+    // API returns { manifest, etag, exportedAt }
+    return exportResponse.data.manifest;
   }
 
   /**
@@ -183,13 +174,15 @@ export class StudioExecutor {
       const fileUrl = new URL(`file://${filePath}`);
       const module = await import(/* webpackIgnore: true */ fileUrl.href);
 
-      const manifest = module.default || module[Object.keys(module)[0]];
+      const exported = module.default || module[Object.keys(module)[0]];
 
-      if (!manifest) {
+      if (!exported) {
         throw new Error(`No default export found in ${filePath}`);
       }
 
-      return manifest;
+      // File exports { manifest, etag, exportedAt }
+      // Extract just the manifest
+      return exported.manifest;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND' ||
           (error as NodeJS.ErrnoException).code === 'ENOENT') {

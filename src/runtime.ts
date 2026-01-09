@@ -60,30 +60,16 @@ export function getRuntime(): RuntimeContext {
 /**
  * Load prompt from API by name
  * Uses export endpoint with createVersion=false to get the same manifest schema as files
- * Returns prompt manifest ready for execution
+ * Returns exported prompt: { manifest, etag, exportedAt }
  */
 export async function loadPrompt(promptName: string): Promise<any> {
   const { client } = getRuntime();
 
   // Use export API with createVersion=false to avoid creating version snapshots
   const exportResponse = await client.exportPrompt(promptName, false);
-  const manifest = exportResponse.data.manifest;
 
-  // Return manifest in same format as exported files
-  return {
-    promptName: manifest.promptName,
-    category: manifest.category,
-    description: manifest.description,
-    enabled: manifest.enabled,
-    systemMessage: manifest.systemMessage,
-    userMessage: manifest.userMessage,
-    variables: manifest.variables,
-    toolDefs: manifest.toolDefs,
-    scenarios: manifest.scenarios || [],
-    models: manifest.models,
-    modelSampling: manifest.modelSampling,
-    metadata: manifest.metadata,
-  };
+  // Return exported prompt in same format as exported files: { manifest, etag, exportedAt }
+  return exportResponse.data;
 }
 
 /**

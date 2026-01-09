@@ -21,10 +21,18 @@ describe('OpenAIExecutor', () => {
 
   beforeEach(() => {
     mockManifest = {
-      systemMessage: 'You are a helpful assistant.',
-      userMessage: 'Help me',
+      name: 'test-openai',
+      category: 'test',
+      description: 'OpenAI test prompt',
+      system: [
+        { name: 'main', content: 'You are a helpful assistant.' }
+      ],
+      user: [
+        { name: 'main', content: 'Help me' }
+      ],
+      blocks: [],
       variables: [],
-      toolDefs: [],
+      tools: [],
       models: [
         {
           provider: 'openai',
@@ -35,7 +43,8 @@ describe('OpenAIExecutor', () => {
             displayName: 'GPT-4'
           }
         }
-      ]
+      ],
+      modelSampling: false
     };
 
     mockCredentials = {

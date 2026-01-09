@@ -29,13 +29,21 @@ describe('Integration Tests', () => {
 
   beforeEach(() => {
     mockManifest = {
-      systemMessage: 'You are an assistant that helps with {task}.',
-      userMessage: 'User: {userMessage}',
+      name: 'test-integration',
+      category: 'test',
+      description: 'Integration test prompt',
+      system: [
+        { name: 'main', content: 'You are an assistant that helps with {task}.' }
+      ],
+      user: [
+        { name: 'main', content: 'User: {userMessage}' }
+      ],
+      blocks: [],
       variables: [
         { name: 'task', type: 'string', required: true },
         { name: 'userMessage', type: 'string', required: true }
       ],
-      toolDefs: [
+      tools: [
         {
           type: 'function',
           function: {
@@ -74,7 +82,8 @@ describe('Integration Tests', () => {
             displayName: 'Claude Sonnet 4.5'
           }
         }
-      ]
+      ],
+      modelSampling: false
     };
 
     mockCredentials = {

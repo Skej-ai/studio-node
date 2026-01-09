@@ -4,6 +4,8 @@
  * HTTP client for Studio API communication
  */
 
+import type { Manifest } from '../../types.js';
+
 export interface ApiOptions {
   apiUrl: string;
   serviceKey: string;
@@ -48,7 +50,8 @@ export interface ListPromptsResponse {
 
 export interface ExportResponse {
   data: {
-    manifest: Prompt;
+    manifest: Manifest;
+    etag: string;
     exportedAt: string;
   };
 }

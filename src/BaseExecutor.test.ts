@@ -30,13 +30,21 @@ describe('BaseExecutor', () => {
 
   beforeEach(() => {
     mockManifest = {
-      systemMessage: 'You are a helpful assistant named {assistantName}.',
-      userMessage: 'Help with: {task}',
+      name: 'test-prompt',
+      category: 'test',
+      description: 'Test prompt',
+      system: [
+        { name: 'main', content: 'You are a helpful assistant named {assistantName}.' }
+      ],
+      user: [
+        { name: 'main', content: 'Help with: {task}' }
+      ],
+      blocks: [],
       variables: [
         { name: 'assistantName', type: 'string', required: true },
         { name: 'task', type: 'string', required: true }
       ],
-      toolDefs: [
+      tools: [
         {
           type: 'function',
           function: {
@@ -75,7 +83,8 @@ describe('BaseExecutor', () => {
             displayName: 'Claude Sonnet 4.5'
           }
         }
-      ]
+      ],
+      modelSampling: false
     };
 
     mockToolRouter = {
@@ -98,22 +107,22 @@ describe('BaseExecutor', () => {
       }).toThrow('[BaseExecutor] manifest is required');
     });
 
-    it('should throw error if systemMessage is missing', () => {
+    it('should throw error if system is missing', () => {
       const invalidManifest = { ...mockManifest };
-      delete (invalidManifest as any).systemMessage;
+      delete (invalidManifest as any).system;
 
       expect(() => {
         new TestExecutor({ manifest: invalidManifest, credentials: mockCredentials });
-      }).toThrow('[BaseExecutor] manifest.systemMessage is required');
+      }).toThrow('[BaseExecutor] manifest.system is required');
     });
 
-    it('should throw error if userMessage is missing', () => {
+    it('should throw error if user is missing', () => {
       const invalidManifest = { ...mockManifest };
-      delete (invalidManifest as any).userMessage;
+      delete (invalidManifest as any).user;
 
       expect(() => {
         new TestExecutor({ manifest: invalidManifest, credentials: mockCredentials });
-      }).toThrow('[BaseExecutor] manifest.userMessage is required');
+      }).toThrow('[BaseExecutor] manifest.user is required');
     });
 
     it('should throw error if variables is missing', () => {
@@ -125,13 +134,13 @@ describe('BaseExecutor', () => {
       }).toThrow('[BaseExecutor] manifest.variables is required');
     });
 
-    it('should throw error if toolDefs is missing', () => {
+    it('should throw error if tools is missing', () => {
       const invalidManifest = { ...mockManifest };
-      delete (invalidManifest as any).toolDefs;
+      delete (invalidManifest as any).tools;
 
       expect(() => {
         new TestExecutor({ manifest: invalidManifest, credentials: mockCredentials });
-      }).toThrow('[BaseExecutor] manifest.toolDefs is required');
+      }).toThrow('[BaseExecutor] manifest.tools is required');
     });
 
     it('should throw error if models is missing', () => {
@@ -292,7 +301,9 @@ describe('BaseExecutor', () => {
     it('should leave unpopulated variables as-is', () => {
       const manifestWithExtra = {
         ...mockManifest,
-        systemMessage: 'Name: {assistantName}, Missing: {missing}'
+        system: [
+          { name: 'main', content: 'Name: {assistantName}, Missing: {missing}' }
+        ]
       };
 
       const executor = new TestExecutor({
@@ -308,7 +319,9 @@ describe('BaseExecutor', () => {
     it('should populate multiple variables in same string', () => {
       const manifestWithMultiple = {
         ...mockManifest,
-        systemMessage: 'Assistant {assistantName} will help with {task}.'
+        system: [
+          { name: 'main', content: 'Assistant {assistantName} will help with {task}.' }
+        ]
       };
 
       const executor = new TestExecutor({

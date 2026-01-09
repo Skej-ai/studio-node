@@ -120,25 +120,27 @@ export default class BaseExecutor {
     this.scenarios = manifest.scenarios || [];
 
     // Use tools from manifest directly - no auto-injection
-    this.allToolDefs = manifest.toolDefs;
+    this.allToolDefs = manifest.tools;
   }
 
   /**
    * Validate required manifest fields
    */
   protected validateManifest(): void {
-    // Check for deprecated chunk format
-    if ((this.manifest as any).systemChunks !== undefined) {
+    // Check for deprecated pre-rendered format
+    if ((this.manifest as any).systemMessage !== undefined ||
+        (this.manifest as any).userMessage !== undefined ||
+        (this.manifest as any).toolDefs !== undefined) {
       throw new Error(
-        '[BaseExecutor] Manifest uses deprecated chunk format. ' +
+        '[BaseExecutor] Manifest uses deprecated pre-rendered format. ' +
         'Please re-export prompts with: skej export'
       );
     }
 
-    const required = ['systemMessage', 'userMessage', 'variables', 'toolDefs', 'models'];
+    const required = ['system', 'user', 'blocks', 'variables', 'tools', 'models'];
 
     for (const field of required) {
-      if (!this.manifest[field as keyof Manifest]) {
+      if (this.manifest[field as keyof Manifest] === undefined) {
         throw new Error(`[BaseExecutor] manifest.${field} is required`);
       }
     }
@@ -147,21 +149,88 @@ export default class BaseExecutor {
       throw new Error('[BaseExecutor] manifest.models is required');
     }
 
-    // Validate non-empty strings
-    if (!this.manifest.systemMessage || this.manifest.systemMessage.trim() === '') {
-      throw new Error('[BaseExecutor] manifest.systemMessage cannot be empty');
+    // Validate arrays
+    if (!Array.isArray(this.manifest.system)) {
+      throw new Error('[BaseExecutor] manifest.system must be an array');
     }
-    if (!this.manifest.userMessage || this.manifest.userMessage.trim() === '') {
-      throw new Error('[BaseExecutor] manifest.userMessage cannot be empty');
+    if (!Array.isArray(this.manifest.user)) {
+      throw new Error('[BaseExecutor] manifest.user must be an array');
+    }
+    if (!Array.isArray(this.manifest.blocks)) {
+      throw new Error('[BaseExecutor] manifest.blocks must be an array');
     }
   }
 
   /**
    * Build system instructions from manifest
-   * Populates variables in systemMessage
+   * Renders system chunks with block references and variables resolved
    */
   protected buildInstructions(): string {
-    return this.populateTemplate(this.manifest.systemMessage, this.variables);
+    return this.renderChunks(this.manifest.system, this.variables);
+  }
+
+  /**
+   * Render chunks into a single message, resolving block references and variables
+   * Replaces {component.blockName} with block content from manifest.blocks
+   * Supports nested blocks (blocks can reference other blocks)
+   * Replaces {variableName} with variable values
+   */
+  protected renderChunks(chunks: any[], variables: Record<string, any> = {}): string {
+    if (!chunks || chunks.length === 0) {
+      return '';
+    }
+
+    const renderedChunks = chunks.map(chunk => {
+      let content = chunk.content;
+
+      // First, resolve block references recursively: {component.blockName}
+      content = this.resolveBlockReferences(content, new Set());
+
+      // Then, populate variables: {variableName}
+      content = this.populateTemplate(content, variables);
+
+      return content;
+    });
+
+    // Join all chunks with double newlines
+    return renderedChunks.join('\n\n');
+  }
+
+  /**
+   * Recursively resolve block references with circular dependency protection
+   * @param content - Content to resolve
+   * @param visitedBlocks - Set of block names currently being resolved (for cycle detection)
+   * @param depth - Current recursion depth (for max depth protection)
+   */
+  protected resolveBlockReferences(content: string, visitedBlocks: Set<string>, depth: number = 0): string {
+    const MAX_DEPTH = 50; // Maximum nesting depth to prevent infinite loops
+
+    // Safety check: prevent excessive recursion depth
+    if (depth > MAX_DEPTH) {
+      this.log(`[BaseExecutor] Max block nesting depth (${MAX_DEPTH}) exceeded. Stopping resolution.`);
+      return content; // Return content as-is
+    }
+
+    return content.replace(/\{component\.([^}]+)\}/g, (match: string, blockName: string) => {
+      // Check for circular reference
+      if (visitedBlocks.has(blockName)) {
+        this.log(`[BaseExecutor] Circular block reference detected: ${blockName} at depth ${depth}`);
+        return match; // Leave as-is to avoid infinite loop
+      }
+
+      // Find the block
+      const block = this.manifest.blocks?.find(b => b.name === blockName);
+      if (!block) {
+        return match; // Block not found, leave as-is
+      }
+
+      // Mark this block as being visited
+      const newVisitedBlocks = new Set(visitedBlocks);
+      newVisitedBlocks.add(blockName);
+
+      // Recursively resolve any nested block references in this block's content with incremented depth
+      return this.resolveBlockReferences(block.content, newVisitedBlocks, depth + 1);
+    });
   }
 
   /**
@@ -286,14 +355,14 @@ export default class BaseExecutor {
   protected buildInitialMessages(): Message[] {
     const messages: Message[] = [];
 
-    // System message
+    // System message - render from chunks
     messages.push({
       role: 'system',
       content: this.instructions
     });
 
-    // User message
-    const populatedContent = this.populateTemplate(this.manifest.userMessage, this.variables);
+    // User message - render from chunks
+    const populatedContent = this.renderChunks(this.manifest.user, this.variables);
 
     // If files are provided, build multimodal content
     let userContent: string | any[];

@@ -19,10 +19,18 @@ describe('AnthropicExecutor', () => {
 
   beforeEach(() => {
     mockManifest = {
-      systemMessage: 'You are a helpful assistant.',
-      userMessage: 'Help me',
+      name: 'test-anthropic',
+      category: 'test',
+      description: 'Anthropic test prompt',
+      system: [
+        { name: 'main', content: 'You are a helpful assistant.' }
+      ],
+      user: [
+        { name: 'main', content: 'Help me' }
+      ],
+      blocks: [],
       variables: [],
-      toolDefs: [],
+      tools: [],
       models: [
         {
           provider: 'anthropic',
@@ -33,7 +41,8 @@ describe('AnthropicExecutor', () => {
             displayName: 'Claude Sonnet 4.5'
           }
         }
-      ]
+      ],
+      modelSampling: false
     };
 
     mockCredentials = {

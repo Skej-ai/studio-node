@@ -48,24 +48,22 @@ describe('Export Command', () => {
     const { loadConfig } = await import('../utils/config.js');
     vi.mocked(loadConfig).mockResolvedValue(mockConfig);
 
-    const mockPrompt = {
-      promptName: 'test-prompt',
+    const mockManifest = {
+      name: 'test-prompt',
       category: 'test',
       description: 'Test prompt',
-      enabled: true,
-      systemMessage: 'System',
-      userMessage: 'User',
+      system: [
+        { name: 'main', content: 'System' }
+      ],
+      user: [
+        { name: 'main', content: 'User' }
+      ],
+      blocks: [],
       variables: [],
-      toolDefs: [],
+      tools: [],
       scenarios: [],
       models: [],
       modelSampling: false,
-      metadata: {},
-      etag: 'test-etag',
-      publishedEtag: null,
-      publishedVersion: null,
-      createdAt: '2024-01-01',
-      updatedAt: '2024-01-01',
     };
 
     const { createApiClient } = await import('../utils/api.js');
@@ -86,7 +84,8 @@ describe('Export Command', () => {
       }),
       exportPrompt: vi.fn().mockResolvedValue({
         data: {
-          manifest: mockPrompt,
+          manifest: mockManifest,
+          etag: 'test-etag',
           exportedAt: '2024-01-01'
         }
       }),
@@ -156,24 +155,22 @@ describe('Export Command', () => {
     const { loadConfig } = await import('../utils/config.js');
     vi.mocked(loadConfig).mockResolvedValue(mockConfig);
 
-    const mockPrompt = {
-      promptName: 'Test Prompt!@#',
+    const mockManifest = {
+      name: 'Test Prompt!@#',
       category: 'test',
       description: '',
-      enabled: true,
-      systemMessage: 'System',
-      userMessage: 'User',
+      system: [
+        { name: 'main', content: 'System' }
+      ],
+      user: [
+        { name: 'main', content: 'User' }
+      ],
+      blocks: [],
       variables: [],
-      toolDefs: [],
+      tools: [],
       scenarios: [],
       models: [],
       modelSampling: false,
-      metadata: {},
-      etag: 'test',
-      publishedEtag: null,
-      publishedVersion: null,
-      createdAt: '2024-01-01',
-      updatedAt: '2024-01-01',
     };
 
     const { createApiClient } = await import('../utils/api.js');
@@ -194,7 +191,8 @@ describe('Export Command', () => {
       }),
       exportPrompt: vi.fn().mockResolvedValue({
         data: {
-          manifest: mockPrompt,
+          manifest: mockManifest,
+          etag: 'test',
           exportedAt: '2024-01-01'
         }
       }),
@@ -222,24 +220,22 @@ describe('Export Command', () => {
     const { loadConfig } = await import('../utils/config.js');
     vi.mocked(loadConfig).mockResolvedValue(mockConfig);
 
-    const mockPrompt = {
-      promptName: 'test-prompt',
+    const mockManifest = {
+      name: 'test-prompt',
       category: 'test',
       description: 'Test',
-      enabled: true,
-      systemMessage: 'System',
-      userMessage: 'User',
+      system: [
+        { name: 'main', content: 'System' }
+      ],
+      user: [
+        { name: 'main', content: 'User' }
+      ],
+      blocks: [],
       variables: [],
-      toolDefs: [],
+      tools: [],
       scenarios: [],
       models: [],
       modelSampling: false,
-      metadata: {},
-      etag: 'test',
-      publishedEtag: null,
-      publishedVersion: null,
-      createdAt: '2024-01-01',
-      updatedAt: '2024-01-01',
     };
 
     const { createApiClient } = await import('../utils/api.js');
@@ -260,7 +256,8 @@ describe('Export Command', () => {
       }),
       exportPrompt: vi.fn().mockResolvedValue({
         data: {
-          manifest: mockPrompt,
+          manifest: mockManifest,
+          etag: 'test',
           exportedAt: '2024-01-01'
         }
       }),
@@ -288,43 +285,40 @@ describe('Export Command', () => {
     const { loadConfig } = await import('../utils/config.js');
     vi.mocked(loadConfig).mockResolvedValue(mockConfig);
 
-    const mockPromptOne = {
-      promptName: 'prompt-one',
+    const mockManifestOne = {
+      name: 'prompt-one',
       category: 'test',
       description: '',
-      enabled: true,
-      systemMessage: 'System',
-      userMessage: 'User',
+      system: [
+        { name: 'main', content: 'System' }
+      ],
+      user: [
+        { name: 'main', content: 'User' }
+      ],
+      blocks: [],
       variables: [],
-      toolDefs: [],
-      scenarios: [],
-      models: [],
-      metadata: {},
-      etag: 'test',
-      publishedEtag: null,
-      publishedVersion: null,
-      createdAt: '2024-01-01',
-      updatedAt: '2024-01-01',
-    };
-
-    const mockPromptTwo = {
-      promptName: 'prompt-two',
-      category: 'test',
-      description: '',
-      enabled: true,
-      systemMessage: 'System',
-      userMessage: 'User',
-      variables: [],
-      toolDefs: [],
+      tools: [],
       scenarios: [],
       models: [],
       modelSampling: false,
-      metadata: {},
-      etag: 'test',
-      publishedEtag: null,
-      publishedVersion: null,
-      createdAt: '2024-01-01',
-      updatedAt: '2024-01-01',
+    };
+
+    const mockManifestTwo = {
+      name: 'prompt-two',
+      category: 'test',
+      description: '',
+      system: [
+        { name: 'main', content: 'System' }
+      ],
+      user: [
+        { name: 'main', content: 'User' }
+      ],
+      blocks: [],
+      variables: [],
+      tools: [],
+      scenarios: [],
+      models: [],
+      modelSampling: false,
     };
 
     const { createApiClient } = await import('../utils/api.js');
@@ -353,13 +347,15 @@ describe('Export Command', () => {
       exportPrompt: vi.fn()
         .mockResolvedValueOnce({
           data: {
-            manifest: mockPromptOne,
+            manifest: mockManifestOne,
+            etag: 'test',
             exportedAt: '2024-01-01'
           }
         })
         .mockResolvedValueOnce({
           data: {
-            manifest: mockPromptTwo,
+            manifest: mockManifestTwo,
+            etag: 'test',
             exportedAt: '2024-01-01'
           }
         }),

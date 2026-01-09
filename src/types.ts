@@ -42,6 +42,22 @@ export interface ModelConfig {
 }
 
 /**
+ * Chunk - A piece of prompt text
+ */
+export interface Chunk {
+  name: string;
+  content: string;
+}
+
+/**
+ * Block - Reusable content block
+ */
+export interface Block {
+  name: string;
+  content: string;
+}
+
+/**
  * Scenario definition
  */
 export interface Scenario {
@@ -54,13 +70,26 @@ export interface Scenario {
  * Agent/Prompt manifest
  */
 export interface Manifest {
-  systemMessage: string;
-  userMessage: string;
+  name: string;
+  category: string;
+  description: string;
+  system: Chunk[];
+  user: Chunk[];
+  blocks: Block[];
   variables: VariableDefinition[];
-  toolDefs: ToolDefinition[];
+  tools: ToolDefinition[];
   models: ModelConfig[];
   modelSampling?: boolean;
   scenarios?: Scenario[];
+}
+
+/**
+ * Exported prompt file format
+ */
+export interface ExportedPrompt {
+  manifest: Manifest;
+  etag: string;
+  exportedAt: string;
 }
 
 /**
