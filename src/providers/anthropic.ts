@@ -24,7 +24,10 @@ export default class AnthropicExecutor extends BaseExecutor {
     }
 
     // Initialize Anthropic client
-    this.client = new Anthropic({ apiKey: anthropicCreds.apiKey });
+    this.client = new Anthropic({
+      apiKey: anthropicCreds.apiKey,
+      dangerouslyAllowBrowser: anthropicCreds.dangerouslyAllowBrowser
+    });
 
     this.log(`[AnthropicExecutor] Initialized with model: ${this.model}`);
   }

@@ -26,7 +26,8 @@ export default class DeepSeekExecutor extends BaseExecutor {
     // Initialize DeepSeek client (OpenAI-compatible)
     this.client = new OpenAI({
       apiKey: deepseekCreds.apiKey,
-      baseURL: 'https://api.deepseek.com/v1'
+      baseURL: 'https://api.deepseek.com/v1',
+      dangerouslyAllowBrowser: deepseekCreds.dangerouslyAllowBrowser
     });
 
     this.log(`[DeepSeekExecutor] Initialized with model: ${this.model}`);

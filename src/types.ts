@@ -98,9 +98,11 @@ export interface ToolResult {
 export interface ProviderCredentials {
   anthropic?: {
     apiKey: string;
+    dangerouslyAllowBrowser?: boolean;
   };
   openai?: {
     apiKey: string;
+    dangerouslyAllowBrowser?: boolean;
   };
   bedrock?: {
     region: string;
@@ -109,6 +111,7 @@ export interface ProviderCredentials {
   };
   deepseek?: {
     apiKey: string;
+    dangerouslyAllowBrowser?: boolean;
   };
 }
 

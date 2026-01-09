@@ -24,7 +24,10 @@ export default class OpenAIExecutor extends BaseExecutor {
     }
 
     // Initialize OpenAI client
-    this.client = new OpenAI({ apiKey: openaiCreds.apiKey });
+    this.client = new OpenAI({
+      apiKey: openaiCreds.apiKey,
+      dangerouslyAllowBrowser: openaiCreds.dangerouslyAllowBrowser
+    });
 
     this.log(`[OpenAIExecutor] Initialized with model: ${this.model}`);
   }
