@@ -628,7 +628,7 @@ export default class BaseExecutor {
 
       const payload = {
         promptName: this.tracing.promptName || 'unknown',
-        manifest: this.manifest, // Send original manifest with chunks/blocks
+        manifest: this.manifest, // Send original manifest with chunks/blocks (includes tools)
         etag: this.tracing.etag || null, // Manifest version
         variables: this.variables, // Actual variable values used
         messages: conversationMessages, // Only conversation after initial prompt (from index 2 onwards)
@@ -643,7 +643,6 @@ export default class BaseExecutor {
           name: this.model,
           metadata: this.primaryModelConfig.metadata || {}
         },
-        tools: this.allToolDefs,
         status: 'completed',
         metadata: {
           turnNumber: this.messages.filter(m => m.role === 'assistant').length
