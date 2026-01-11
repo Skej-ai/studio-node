@@ -82,7 +82,7 @@ export async function loadConfig(cwd?: string): Promise<StudioConfig | null> {
     return {
       tenantId: config.tenantId,
       serviceKey: config.serviceKey,
-      apiUrl: config.apiUrl || 'https://api.skej.com',
+      apiUrl: config.apiUrl || 'https://api.studio.skej.com',
       outputDir: config.outputDir || './studio/prompts',
       apiMode: config.apiMode !== undefined ? config.apiMode : false,
     };
@@ -120,7 +120,7 @@ export async function createConfig(options: {
   const jsTemplate = `/**
  * Studio Configuration
  *
- * Get your service key from: ${apiUrl}/settings/service-keys
+ * Get your service key from: https://studio.skej.com/settings?tab=api-keys
  *
  * WARNING: Keep this file out of version control!
  * Add studio.config.${extension} to your .gitignore
@@ -150,7 +150,7 @@ export default {
   const tsTemplate = `/**
  * Studio Configuration
  *
- * Get your service key from: ${apiUrl}/settings/service-keys
+ * Get your service key from: https://studio.skej.com/settings?tab=api-keys
  *
  * WARNING: Keep this file out of version control!
  * Add studio.config.${extension} to your .gitignore

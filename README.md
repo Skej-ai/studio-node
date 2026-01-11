@@ -37,7 +37,7 @@ Edit `studio.config.js`:
 export default {
   tenantId: 'your-tenant-id',
   serviceKey: process.env.STUDIO_SERVICE_KEY || 'sk-xxx',
-  apiUrl: 'https://api.skej.com',
+  apiUrl: 'https://api.studio.skej.com',
   outputDir: './studio/prompts',
   apiMode: false,  // true = load from API, false = load from files
 };
@@ -256,7 +256,7 @@ Direct API client for Studio resources:
 import { StudioApiClient } from '@skej/studio';
 
 const client = new StudioApiClient({
-  apiUrl: 'https://api.skej.com',
+  apiUrl: 'https://api.studio.skej.com',
   serviceKey: 'sk_live_your_service_key_here',
   tenantId: 'tenant_123',
 });

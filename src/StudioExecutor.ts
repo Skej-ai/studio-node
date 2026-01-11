@@ -165,32 +165,26 @@ export class StudioExecutor {
       );
     }
 
-    // Dynamically import path module (only available in Node.js)
+    // Dynamically import path and fs modules (only available in Node.js)
     const { join, resolve } = await import('path');
+    const { readFile } = await import('fs/promises');
 
     // Sanitize filename (same logic as export command)
     const filename = promptName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
 
     // Resolve path from config outputDir
     const outputDir = resolve(this.config.outputDir);
-    const filePath = join(outputDir, `${filename}.ts`);
+    const filePath = join(outputDir, `${filename}.json`);
 
     try {
-      // For TypeScript/ESM, we need to use dynamic import
-      const fileUrl = new URL(`file://${filePath}`);
-      const module = await import(/* webpackIgnore: true */ fileUrl.href);
+      // Read the JSON file
+      const fileContent = await readFile(filePath, 'utf-8');
+      const exportedPrompt = JSON.parse(fileContent);
 
-      const exported = module.default || module[Object.keys(module)[0]];
-
-      if (!exported) {
-        throw new Error(`No default export found in ${filePath}`);
-      }
-
-      // File exports { manifest, etag, exportedAt }
-      return exported;
+      // File contains { manifest, etag, exportedAt }
+      return exportedPrompt;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND' ||
-          (error as NodeJS.ErrnoException).code === 'ENOENT') {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         throw new Error(
           `Prompt file not found: ${filePath}\n` +
           `Run 'skej export' to download prompts from Studio.`
@@ -242,7 +236,7 @@ export class StudioExecutor {
 
     // Dynamically import Node.js modules
     const { join, resolve } = await import('path');
-    const { readdir } = await import('fs/promises');
+    const { readdir, readFile } = await import('fs/promises');
 
     const outputDir = resolve(this.config.outputDir);
 
@@ -251,18 +245,18 @@ export class StudioExecutor {
       const prompts = [];
 
       for (const file of files) {
-        if (!file.endsWith('.ts') && !file.endsWith('.js')) continue;
+        if (!file.endsWith('.json')) continue;
 
         try {
           const filePath = join(outputDir, file);
-          const fileUrl = new URL(`file://${filePath}`);
-          const module = await import(/* webpackIgnore: true */ fileUrl.href);
-          const manifest = module.default || module[Object.keys(module)[0]];
+          const fileContent = await readFile(filePath, 'utf-8');
+          const exportedPrompt = JSON.parse(fileContent);
+          const manifest = exportedPrompt.manifest;
 
           if (!manifest) continue;
 
           // Extract prompt name from filename
-          const promptName = file.replace(/\.(ts|js)$/, '');
+          const promptName = file.replace(/\.json$/, '');
 
           // Apply filters
           if (filters?.multiStep !== undefined) {

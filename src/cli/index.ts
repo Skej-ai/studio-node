@@ -21,7 +21,7 @@ program
 program
   .command('init')
   .description('Initialize Studio configuration file')
-  .option('--api-url <url>', 'API URL', 'https://api.skej.com')
+  .option('--api-url <url>', 'API URL', 'https://api.studio.skej.com')
   .option('--output-dir <dir>', 'Output directory for prompts', './studio/prompts')
   .option('--typescript', 'Create TypeScript config file (studio.config.ts)')
   .action(initCommand);

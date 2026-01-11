@@ -265,6 +265,28 @@ export class StudioApiClient {
   }
 
   /**
+   * Bulk export all prompts as a zip file
+   * Returns a Buffer containing the zip file with JSON files
+   */
+  async exportAllPrompts(): Promise<Buffer> {
+    const url = `${this.apiUrl}/tenants/${this.tenantId}/export/prompts`;
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${this.serviceKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`API Error (${response.status}): ${error}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
+  /**
    * Test API connection
    */
   async testConnection(): Promise<boolean> {
