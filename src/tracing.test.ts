@@ -211,4 +211,222 @@ describe('Tracing', () => {
     // Verify tools field is NOT present (redundant)
     expect(tracePayload.tools).toBeUndefined();
   });
+
+  it('should send traces for built-in tool executions', async () => {
+    // Reset mocks completely
+    mockCreate.mockReset();
+    fetchSpy.mockClear();
+
+    // Re-setup fetch mock
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+      text: async () => '',
+    } as Response);
+
+    const manifest: Manifest = {
+      name: 'test-with-scenarios',
+      category: 'General',
+      description: 'Test prompt with scenarios',
+      system: [
+        {
+          name: 'intro',
+          content: 'You are a helpful assistant.'
+        }
+      ],
+      user: [
+        {
+          name: 'user_message',
+          content: 'Help me with {task}'
+        }
+      ],
+      blocks: [],
+      variables: [
+        { name: 'task', type: 'string', required: true }
+      ],
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'fetch_available_scenarios',
+            description: 'Fetch available scenarios',
+            parameters: {
+              type: 'object',
+              properties: {}
+            }
+          }
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'fetch_scenario_specific_instructions',
+            description: 'Fetch scenario-specific instructions',
+            parameters: {
+              type: 'object',
+              properties: {
+                scenarioNames: {
+                  type: 'array',
+                  items: { type: 'string' }
+                }
+              },
+              required: ['scenarioNames']
+            }
+          }
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'finish_agent_run',
+            description: 'Signal completion',
+            parameters: {
+              type: 'object',
+              properties: {
+                summary: { type: 'string' }
+              },
+              required: ['summary']
+            }
+          }
+        }
+      ],
+      models: [
+        {
+          provider: 'anthropic',
+          name: 'claude-sonnet-4-5',
+          metadata: {}
+        }
+      ],
+      modelSampling: false,
+      scenarios: [
+        {
+          name: 'test-scenario',
+          description: 'A test scenario',
+          instructions: 'Test instructions here'
+        }
+      ]
+    };
+
+    // Mock the Anthropic SDK to return tool calls for each turn
+    mockCreate.mockResolvedValueOnce({
+        id: 'msg_1',
+        type: 'message',
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'call_1',
+            name: 'fetch_available_scenarios',
+            input: {}
+          }
+        ],
+        model: 'claude-sonnet-4-5',
+        stop_reason: 'tool_use',
+        usage: { input_tokens: 100, output_tokens: 50 }
+      })
+      .mockResolvedValueOnce({
+        id: 'msg_2',
+        type: 'message',
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'call_2',
+            name: 'fetch_scenario_specific_instructions',
+            input: { scenarioNames: ['test-scenario'] }
+          }
+        ],
+        model: 'claude-sonnet-4-5',
+        stop_reason: 'tool_use',
+        usage: { input_tokens: 100, output_tokens: 50 }
+      })
+      .mockResolvedValueOnce({
+        id: 'msg_3',
+        type: 'message',
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'call_3',
+            name: 'finish_agent_run',
+            input: { summary: 'All done' }
+          }
+        ],
+        model: 'claude-sonnet-4-5',
+        stop_reason: 'tool_use',
+        usage: { input_tokens: 100, output_tokens: 50 }
+      });
+
+    // Create executor with tracing enabled
+    const executor = await createExecutor({
+      manifest,
+      credentials: {
+        anthropic: {
+          apiKey: 'test-key'
+        }
+      },
+      variables: {
+        task: 'testing'
+      },
+      toolRouter: {}, // Empty tool router to enable tool loop
+      tracing: {
+        enabled: true,
+        apiUrl: 'http://localhost:3004',
+        tenantId: 'test-tenant',
+        serviceKey: 'test-key',
+        promptName: 'test-with-scenarios',
+        etag: 'test-etag',
+        tags: ['test']
+      }
+    });
+
+    // Execute
+    const result = await executor.execute();
+
+    // Wait for async fetch to complete (fire-and-forget)
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // Check that fetch was called for both LLM turns and tool executions
+    expect(fetchSpy).toHaveBeenCalled();
+
+    // Get all trace calls
+    const traceCalls = fetchSpy.mock.calls.filter((call: any) =>
+      call[0].includes('/traces')
+    );
+
+    // Should have:
+    // - 3 LLM turn traces (one for each invoke)
+    // - 3 tool execution traces (fetch_available_scenarios, fetch_scenario_specific_instructions, finish_agent_run)
+    expect(traceCalls.length).toBeGreaterThanOrEqual(6);
+
+    // Parse trace payloads
+    const tracePayloads = traceCalls.map((call: any) => JSON.parse(call[1].body));
+
+    // Find tool execution traces
+    const toolTraces = tracePayloads.filter((p: any) => p.metadata?.toolExecution === true);
+
+    // Should have 3 tool traces
+    expect(toolTraces.length).toBe(3);
+
+    // Verify fetch_available_scenarios trace
+    const fetchScenariosTrace = toolTraces.find((t: any) => t.metadata.toolName === 'fetch_available_scenarios');
+    expect(fetchScenariosTrace).toBeDefined();
+    expect(fetchScenariosTrace.output.toolName).toBe('fetch_available_scenarios');
+    expect(fetchScenariosTrace.output.output.scenarios).toHaveLength(1);
+    expect(fetchScenariosTrace.output.output.scenarios[0].name).toBe('test-scenario');
+    expect(fetchScenariosTrace.status).toBe('completed');
+
+    // Verify fetch_scenario_specific_instructions trace
+    const fetchInstructionsTrace = toolTraces.find((t: any) => t.metadata.toolName === 'fetch_scenario_specific_instructions');
+    expect(fetchInstructionsTrace).toBeDefined();
+    expect(fetchInstructionsTrace.output.toolName).toBe('fetch_scenario_specific_instructions');
+    expect(fetchInstructionsTrace.output.input.scenarioNames).toEqual(['test-scenario']);
+    expect(fetchInstructionsTrace.output.output.scenarios).toHaveLength(1);
+    expect(fetchInstructionsTrace.status).toBe('completed');
+
+    // Verify finish_agent_run trace
+    const finishTrace = toolTraces.find((t: any) => t.metadata.toolName === 'finish_agent_run');
+    expect(finishTrace).toBeDefined();
+    expect(finishTrace.output.toolName).toBe('finish_agent_run');
+    expect(finishTrace.output.input.summary).toBe('All done');
+    expect(finishTrace.status).toBe('completed');
+  });
 });

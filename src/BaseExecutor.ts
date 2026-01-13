@@ -31,6 +31,7 @@ import type {
   ToolCallCallback,
   TracingConfig
 } from './types.js';
+import { sendTrace } from './tracing.js';
 
 export default class BaseExecutor {
   protected manifest: Manifest;
@@ -302,12 +303,16 @@ export default class BaseExecutor {
       const turnCost = this.calculateCost(result.usage?.input_tokens || 0, result.usage?.output_tokens || 0);
       await this.sendTurnTrace(result.usage || { input_tokens: 0, output_tokens: 0 }, turnDuration, turnCost);
 
-      // If no toolRouter provided, skip tool loop and return content directly
-      const hasExecutableTools = this.toolRouter && Object.keys(this.toolRouter).length > 0;
+      // Check if we need to process tool calls
+      // Enter tool loop if:
+      // 1. Message has tool calls (including built-in tools), OR
+      // 2. toolRouter is provided (for backward compatibility and error handling)
+      const hasToolCalls = this.hasToolCalls(result.message);
+      const hasToolRouter = this.toolRouter && Object.keys(this.toolRouter).length > 0;
       let output: any;
 
-      if (!hasExecutableTools) {
-        // For prompts without tools, return the text content
+      if (!hasToolCalls && !hasToolRouter) {
+        // No tool calls and no tool router, return the text content
         output = result.message.content;
       } else {
         // Process tool calls loop
@@ -484,16 +489,26 @@ export default class BaseExecutor {
     for (const toolCall of toolCalls) {
       this.log(`[BaseExecutor] Executing tool: ${toolCall.name}`);
 
+      const toolStart = Date.now();
       let toolResult: any;
+      let toolStatus: 'success' | 'error' = 'success';
 
       // Handle built-in tools internally
       if (toolCall.name === 'finish_agent_run') {
         // Built-in terminating tool - return args directly
         toolResult = toolCall.args;
+        const toolDuration = Date.now() - toolStart;
+        await this.sendToolTrace(toolCall.name, toolCall.args, toolResult, toolDuration, 'success');
       } else if (toolCall.name === 'fetch_available_scenarios') {
         toolResult = this.handleFetchAvailableScenarios();
+        const toolDuration = Date.now() - toolStart;
+        toolStatus = toolResult.error ? 'error' : 'success';
+        await this.sendToolTrace(toolCall.name, {}, toolResult, toolDuration, toolStatus);
       } else if (toolCall.name === 'fetch_scenario_specific_instructions') {
         toolResult = this.handleFetchScenarioInstructions(toolCall.args);
+        const toolDuration = Date.now() - toolStart;
+        toolStatus = toolResult.error ? 'error' : 'success';
+        await this.sendToolTrace(toolCall.name, toolCall.args, toolResult, toolDuration, toolStatus);
       } else {
         // Check toolRouter for user-defined tools
         const toolHandler = this.toolRouter[toolCall.name];
@@ -598,78 +613,85 @@ export default class BaseExecutor {
    * Sends entire message stack with token usage for this turn
    */
   protected async sendTurnTrace(turnUsage: { input_tokens: number; output_tokens: number }, turnDuration: number, cost?: number): Promise<void> {
-    // Skip if tracing is disabled
-    if (!this.tracing?.enabled) {
-      return;
-    }
+    if (!this.tracing) return;
 
-    // Skip if required config is missing
-    if (!this.tracing.apiUrl || !this.tracing.tenantId || !this.tracing.serviceKey) {
-      this.log('[BaseExecutor] Tracing enabled but missing required config (apiUrl, tenantId, serviceKey)');
-      return;
-    }
+    // Get the last assistant message as output (entire message object)
+    const lastAssistantMessage = [...this.messages].reverse().find(m => m.role === 'assistant');
+    const output = lastAssistantMessage || null;
 
-    try {
-      const url = `${this.tracing.apiUrl}/tenants/${this.tracing.tenantId}/traces`;
+    // Exclude the last assistant message from messages array (it's in output)
+    const lastAssistantIndex = this.messages.lastIndexOf(lastAssistantMessage!);
+    const messagesWithoutOutput = lastAssistantIndex >= 0
+      ? [...this.messages.slice(0, lastAssistantIndex), ...this.messages.slice(lastAssistantIndex + 1)]
+      : this.messages;
 
-      // Get the last assistant message as output (entire message object)
-      const lastAssistantMessage = [...this.messages].reverse().find(m => m.role === 'assistant');
-      const output = lastAssistantMessage || null;
+    // Skip first 2 messages (system and initial user) since they're in the manifest
+    // Only send the conversation that happened after: tool calls, tool results, subsequent LLM responses
+    const conversationMessages = messagesWithoutOutput.slice(2);
 
-      // Exclude the last assistant message from messages array (it's in output)
-      const lastAssistantIndex = this.messages.lastIndexOf(lastAssistantMessage!);
-      const messagesWithoutOutput = lastAssistantIndex >= 0
-        ? [...this.messages.slice(0, lastAssistantIndex), ...this.messages.slice(lastAssistantIndex + 1)]
-        : this.messages;
+    const payload = {
+      promptName: this.tracing.promptName || 'unknown',
+      manifest: this.manifest,
+      etag: this.tracing.etag || null,
+      variables: this.variables,
+      messages: conversationMessages,
+      output: output,
+      inputTokens: turnUsage.input_tokens,
+      outputTokens: turnUsage.output_tokens,
+      totalTokens: turnUsage.input_tokens + turnUsage.output_tokens,
+      cost: cost || 0,
+      duration: turnDuration,
+      model: {
+        provider: this.provider,
+        name: this.model,
+        metadata: this.primaryModelConfig.metadata || {}
+      },
+      status: 'completed',
+      metadata: {
+        turnNumber: this.messages.filter(m => m.role === 'assistant').length
+      },
+      tags: this.tracing.tags || []
+    };
 
-      // Skip first 2 messages (system and initial user) since they're in the manifest
-      // Only send the conversation that happened after: tool calls, tool results, subsequent LLM responses
-      const conversationMessages = messagesWithoutOutput.slice(2);
+    await sendTrace(this.tracing, payload, this.log);
+  }
 
-      const payload = {
-        promptName: this.tracing.promptName || 'unknown',
-        manifest: this.manifest, // Send original manifest with chunks/blocks (includes tools)
-        etag: this.tracing.etag || null, // Manifest version
-        variables: this.variables, // Actual variable values used
-        messages: conversationMessages, // Only conversation after initial prompt (from index 2 onwards)
-        output: output, // Last AI message
-        inputTokens: turnUsage.input_tokens,
-        outputTokens: turnUsage.output_tokens,
-        totalTokens: turnUsage.input_tokens + turnUsage.output_tokens,
-        cost: cost || 0,
-        duration: turnDuration,
-        model: {
-          provider: this.provider,
-          name: this.model,
-          metadata: this.primaryModelConfig.metadata || {}
-        },
-        status: 'completed',
-        metadata: {
-          turnNumber: this.messages.filter(m => m.role === 'assistant').length
-        },
-        tags: this.tracing.tags || []
-      };
+  /**
+   * Send trace for tool execution to observability API
+   */
+  protected async sendToolTrace(toolName: string, toolInput: any, toolOutput: any, duration: number, status: 'success' | 'error'): Promise<void> {
+    if (!this.tracing) return;
 
-      // Send trace (fire and forget - don't block execution)
-      fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.tracing.serviceKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      }).then(async (response) => {
-        if (!response.ok) {
-          const text = await response.text();
-          this.log('[BaseExecutor] Trace failed:', text);
-        }
-      }).catch(error => {
-        this.log('[BaseExecutor] Failed to send turn trace:', error.message);
-      });
+    const payload = {
+      promptName: this.tracing.promptName || 'unknown',
+      manifest: this.manifest,
+      etag: this.tracing.etag || null,
+      variables: this.variables,
+      messages: [],
+      output: {
+        toolName,
+        input: toolInput,
+        output: toolOutput
+      },
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      cost: 0,
+      duration: duration,
+      model: {
+        provider: this.provider,
+        name: this.model,
+        metadata: this.primaryModelConfig.metadata || {}
+      },
+      status: status === 'success' ? 'completed' : 'error',
+      metadata: {
+        toolName,
+        toolExecution: true
+      },
+      tags: this.tracing.tags || []
+    };
 
-    } catch (error: any) {
-      this.log('[BaseExecutor] Error sending turn trace:', error.message);
-    }
+    await sendTrace(this.tracing, payload, this.log);
   }
 
   // ============================================
