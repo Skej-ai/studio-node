@@ -49,6 +49,10 @@ export default class BedrockExecutor extends BaseExecutor {
     // Extract provider-specific parameters
     const providerParams = this.#extractProviderParams();
 
+    // Extract system messages (Bedrock requires separate system parameter)
+    const systemMessages = messages.filter(m => m.role === 'system');
+    const systemContent = systemMessages.map(m => m.content).join('\n\n');
+
     // Build request parameters
     const params: any = {
       modelId: this.model,
@@ -57,6 +61,11 @@ export default class BedrockExecutor extends BaseExecutor {
         maxTokens: providerParams.maxTokens || providerParams.max_tokens || 4096
       }
     };
+
+    // Add system parameter if we have system messages
+    if (systemContent) {
+      params.system = [{ text: systemContent }];
+    }
 
     // Add temperature if defined
     if (providerParams.temperature !== undefined) {

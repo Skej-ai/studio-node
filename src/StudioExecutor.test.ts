@@ -175,6 +175,27 @@ describe('StudioExecutor', () => {
       };
       vi.mocked(createExecutor).mockResolvedValue(mockExecutor as any);
 
+      // Mock readFile to return valid JSON
+      const { readFile } = await import('fs/promises');
+      const mockPromptData = {
+        manifest: {
+          name: 'test-prompt',
+          category: 'test',
+          description: 'Test',
+          system: [{ name: 'main', content: 'System' }],
+          user: [{ name: 'main', content: 'User' }],
+          blocks: [],
+          variables: [],
+          tools: [],
+          scenarios: [],
+          models: [{ provider: 'anthropic', name: 'claude-3-5-sonnet-20241022' }],
+          modelSampling: false,
+        },
+        etag: 'test-etag',
+        exportedAt: '2024-01-01'
+      };
+      vi.mocked(readFile).mockResolvedValue(JSON.stringify(mockPromptData));
+
       const executor = await StudioExecutor.create({
         credentials: mockCredentials,
         config: mockConfig,

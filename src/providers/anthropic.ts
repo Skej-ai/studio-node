@@ -40,6 +40,10 @@ export default class AnthropicExecutor extends BaseExecutor {
     // Extract provider-specific parameters from model config
     const providerParams = this.#extractProviderParams();
 
+    // Extract system messages (Anthropic requires separate system parameter)
+    const systemMessages = messages.filter(m => m.role === 'system');
+    const systemContent = systemMessages.map(m => m.content).join('\n\n');
+
     // Build request parameters
     const params: any = {
       model: this.model,
@@ -47,6 +51,11 @@ export default class AnthropicExecutor extends BaseExecutor {
       messages: this.#formatMessages(messages),
       ...providerParams // Spread all provider-specific params
     };
+
+    // Add system parameter if we have system messages
+    if (systemContent) {
+      params.system = systemContent;
+    }
 
     // Add tools if provided
     if (options.tools && options.tools.length > 0) {
