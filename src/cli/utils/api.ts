@@ -213,11 +213,12 @@ export class StudioApiClient {
   /**
    * List all prompts for tenant
    */
-  async listPrompts(filters?: { multiStep?: boolean; enabled?: boolean; page?: number }): Promise<ListPromptsResponse> {
+  async listPrompts(filters?: { multiStep?: boolean; enabled?: boolean; page?: number; per_page?: number }): Promise<ListPromptsResponse> {
     const params = new URLSearchParams();
     if (filters?.multiStep !== undefined) params.append('multiStep', String(filters.multiStep));
     if (filters?.enabled !== undefined) params.append('enabled', String(filters.enabled));
     if (filters?.page !== undefined) params.append('page', String(filters.page));
+    if (filters?.per_page !== undefined) params.append('per_page', String(filters.per_page));
     const query = params.toString() ? `?${params.toString()}` : '';
 
     return this.request<ListPromptsResponse>(
@@ -227,6 +228,7 @@ export class StudioApiClient {
 
   /**
    * List all prompts (fetches all pages)
+   * Fetches 100 items per page to minimize network calls
    */
   async listAllPrompts(filters?: { multiStep?: boolean; enabled?: boolean }): Promise<PromptListItem[]> {
     const allPrompts: PromptListItem[] = [];
@@ -234,7 +236,7 @@ export class StudioApiClient {
     let hasMore = true;
 
     while (hasMore) {
-      const response = await this.listPrompts({ ...filters, page });
+      const response = await this.listPrompts({ ...filters, page, per_page: 100 });
       allPrompts.push(...response.data);
       hasMore = response.has_more;
       page++;
