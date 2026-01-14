@@ -394,8 +394,9 @@ describe('Tracing', () => {
 
     // Should have:
     // - 3 LLM turn traces (one for each invoke)
-    // - 3 tool execution traces (fetch_available_scenarios, fetch_scenario_specific_instructions, finish_agent_run)
-    expect(traceCalls.length).toBeGreaterThanOrEqual(6);
+    // - 2 tool execution traces (fetch_available_scenarios, fetch_scenario_specific_instructions)
+    // Note: finish_agent_run does NOT send a toolTrace - it's captured in the turnTrace
+    expect(traceCalls.length).toBeGreaterThanOrEqual(5);
 
     // Parse trace payloads
     const tracePayloads = traceCalls.map((call: any) => JSON.parse(call[1].body));
@@ -403,8 +404,8 @@ describe('Tracing', () => {
     // Find tool execution traces
     const toolTraces = tracePayloads.filter((p: any) => p.metadata?.toolExecution === true);
 
-    // Should have 3 tool traces
-    expect(toolTraces.length).toBe(3);
+    // Should have 2 tool traces (not including finish_agent_run)
+    expect(toolTraces.length).toBe(2);
 
     // Verify fetch_available_scenarios trace
     const fetchScenariosTrace = toolTraces.find((t: any) => t.metadata.toolName === 'fetch_available_scenarios');
@@ -422,11 +423,7 @@ describe('Tracing', () => {
     expect(fetchInstructionsTrace.output.output.scenarios).toHaveLength(1);
     expect(fetchInstructionsTrace.status).toBe('completed');
 
-    // Verify finish_agent_run trace
-    const finishTrace = toolTraces.find((t: any) => t.metadata.toolName === 'finish_agent_run');
-    expect(finishTrace).toBeDefined();
-    expect(finishTrace.output.toolName).toBe('finish_agent_run');
-    expect(finishTrace.output.input.summary).toBe('All done');
-    expect(finishTrace.status).toBe('completed');
+    // Note: finish_agent_run does NOT send a separate toolTrace
+    // It's captured in the final turnTrace instead
   });
 });

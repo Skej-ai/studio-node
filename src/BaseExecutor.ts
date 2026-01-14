@@ -440,8 +440,8 @@ export default class BaseExecutor {
       if (terminatingCall) {
         const terminatingResult = toolResults.find(r => r.tool_call_id === terminatingCall.id);
 
-        // If tool returned error, continue loop
-        if (terminatingResult && terminatingResult.content.error) {
+        // If tool returned completed: false or error, continue loop
+        if (terminatingResult && (terminatingResult.content.completed === false || terminatingResult.content.error)) {
           this.log(`[BaseExecutor] Terminating tool rejected, continuing`);
         } else {
           // Tool accepted, return output
@@ -495,10 +495,26 @@ export default class BaseExecutor {
 
       // Handle built-in tools internally
       if (toolCall.name === 'finish_agent_run') {
-        // Built-in terminating tool - return args directly
-        toolResult = toolCall.args;
-        const toolDuration = Date.now() - toolStart;
-        await this.sendToolTrace(toolCall.name, toolCall.args, toolResult, toolDuration, 'success');
+        // Check if toolRouter has a handler for finish_agent_run
+        const toolHandler = this.toolRouter[toolCall.name];
+
+        if (toolHandler) {
+          // Use custom handler if provided
+          try {
+            toolResult = await toolHandler.execute(toolCall.args);
+            toolStatus = toolResult.error ? 'error' : 'success';
+          } catch (error: any) {
+            toolResult = {
+              completed: false,
+              error: true,
+              message: error.message || 'An error occurred while executing finish_agent_run'
+            };
+          }
+        } else {
+          // Built-in terminating tool - return args directly
+          toolResult = toolCall.args;
+        }
+        // Note: No toolTrace sent for finish_agent_run - it's captured in the turnTrace
       } else if (toolCall.name === 'fetch_available_scenarios') {
         toolResult = this.handleFetchAvailableScenarios();
         const toolDuration = Date.now() - toolStart;
