@@ -103,9 +103,12 @@ export default class GoogleExecutor extends BaseExecutor {
     const toolCalls = this.#extractToolCalls(candidate.content);
 
     // Extract usage
+    // Include thoughtsTokenCount (Gemini 2.5+) in output tokens since it's generated reasoning
+    const metadata = response.usageMetadata as any;
+    const thoughtsTokens = metadata?.thoughtsTokenCount || 0;
     const usage = {
       input_tokens: response.usageMetadata?.promptTokenCount || 0,
-      output_tokens: response.usageMetadata?.candidatesTokenCount || 0
+      output_tokens: (response.usageMetadata?.candidatesTokenCount || 0) + thoughtsTokens
     };
 
     // Format response to match expected structure
@@ -145,21 +148,8 @@ export default class GoogleExecutor extends BaseExecutor {
 
       // Handle tool messages
       if (msg.role === 'tool') {
-        // Find the corresponding tool call name by looking back in messages
-        const toolCallId = msg.tool_call_id;
-        let toolName = msg.name || 'unknown';
-
-        // Look backwards through messages to find the assistant message with this tool call
-        for (let i = messages.length - 1; i >= 0; i--) {
-          const prevMsg = messages[i];
-          if (prevMsg.role === 'assistant' && prevMsg.tool_calls) {
-            const matchingCall = prevMsg.tool_calls.find(tc => tc.id === toolCallId);
-            if (matchingCall) {
-              toolName = matchingCall.name;
-              break;
-            }
-          }
-        }
+        // For Google, tool_call_id IS the function name (we set id = name in extractToolCalls)
+        const toolName = msg.tool_call_id || msg.name || 'unknown';
 
         // Tool results go into a 'function' part with a 'functionResponse'
         contents.push({
@@ -329,7 +319,7 @@ export default class GoogleExecutor extends BaseExecutor {
     for (const part of content.parts) {
       if ('functionCall' in part && part.functionCall) {
         toolCalls.push({
-          id: `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          id: part.functionCall.name, // Use function name as ID since Google doesn't provide IDs
           name: part.functionCall.name,
           args: part.functionCall.args || {}
         });

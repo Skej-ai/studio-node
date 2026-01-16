@@ -382,12 +382,12 @@ describe('GoogleExecutor', () => {
           role: 'assistant',
           content: '',
           tool_calls: [
-            { id: 'call_123', name: 'test_tool', args: { query: 'test' } }
+            { id: 'test_tool', name: 'test_tool', args: { query: 'test' } }
           ]
         },
         {
           role: 'tool',
-          tool_call_id: 'call_123',
+          tool_call_id: 'test_tool',
           content: '{"result":"success"}'
         }
       ] as any;
