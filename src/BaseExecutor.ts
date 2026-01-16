@@ -53,6 +53,7 @@ export default class BaseExecutor {
   protected allToolDefs: ToolDefinition[];
   protected tracing?: TracingConfig;
   protected files?: Array<any>;
+  protected maxMessages: number;
 
   constructor({
     // Core execution
@@ -67,6 +68,7 @@ export default class BaseExecutor {
     log = console.log, // Logger function
     tracing,           // Tracing configuration for observability
     files,             // Files (images, audio) for vision/audio prompts
+    maxMessages = 50,  // Maximum messages before throwing error
 
     // Internal (passed by factory for model switching)
     executorFactory
@@ -86,6 +88,7 @@ export default class BaseExecutor {
     this.credentials = credentials || {};
     this.log = log;
     this.files = files;
+    this.maxMessages = maxMessages;
 
     // Messages
     this.messages = messages;
@@ -120,8 +123,8 @@ export default class BaseExecutor {
     // Scenarios (no auto-injection - manifest should have all tools)
     this.scenarios = manifest.scenarios || [];
 
-    // Use tools from manifest directly - no auto-injection
-    this.allToolDefs = manifest.tools;
+    // Use tools from manifest - process to move reasoning fields to top
+    this.allToolDefs = this.processToolDefinitions(manifest.tools);
   }
 
   /**
@@ -252,6 +255,82 @@ export default class BaseExecutor {
   cancel(): boolean {
     this.cancelled = true;
     return true;
+  }
+
+  /**
+   * Process all tool definitions to reorder reasoning fields
+   * Called once when loading tools from manifest
+   */
+  protected processToolDefinitions(tools: any[]): any[] {
+    if (!tools || !Array.isArray(tools)) {
+      return tools;
+    }
+
+    return tools.map(tool => this.processToolDefinition(tool));
+  }
+
+  /**
+   * Process a single tool definition to move reasoning fields to the top
+   * Handles OpenAI format: { type: "function", function: { parameters: {...} } }
+   */
+  protected processToolDefinition(tool: any): any {
+    if (!tool || typeof tool !== 'object') {
+      return tool;
+    }
+
+    // Clone to avoid mutating the original
+    const processed = JSON.parse(JSON.stringify(tool));
+
+    // OpenAI format: tool.function.parameters
+    if (processed.function?.parameters) {
+      processed.function.parameters = this.processToolSchema(processed.function.parameters);
+    }
+
+    return processed;
+  }
+
+  /**
+   * Process tool schema to move reasoning fields to the top
+   * This ensures that with strict: true, the LLM generates reasoning first
+   *
+   * @param schema - The input schema object (e.g., parameters or input_schema)
+   * @returns Processed schema with reasoning fields at the top
+   */
+  protected processToolSchema(schema: any): any {
+    if (!schema || typeof schema !== 'object') {
+      return schema;
+    }
+
+    // Clone to avoid mutating the original
+    const processed = { ...schema };
+
+    // Check if properties exists and has reasoning fields
+    if (processed.properties && typeof processed.properties === 'object') {
+      const properties = processed.properties;
+      const reasoningFields = ['reason', 'reasoning'];
+
+      // Find which reasoning field exists (if any)
+      const reasoningField = reasoningFields.find(field => field in properties);
+
+      if (reasoningField) {
+        // Reorder properties with reasoning first
+        const { [reasoningField]: reasoningProp, ...rest } = properties;
+        processed.properties = {
+          [reasoningField]: reasoningProp,
+          ...rest
+        };
+
+        // Also reorder required array if it exists
+        if (Array.isArray(processed.required) && processed.required.includes(reasoningField)) {
+          processed.required = [
+            reasoningField,
+            ...processed.required.filter((f: string) => f !== reasoningField)
+          ];
+        }
+      }
+    }
+
+    return processed;
   }
 
   /**
@@ -396,6 +475,13 @@ export default class BaseExecutor {
 
     while (this.hasToolCalls(message)) {
       if (this.cancelled) break;
+
+      // Safety check: prevent infinite loops
+      if (this.messages.length >= this.maxMessages) {
+        const error = `[BaseExecutor] Message stack exceeded ${this.maxMessages} messages. Possible infinite loop detected. Agent must call a terminating tool (finish_agent_run or output) to complete.`;
+        this.log(error);
+        throw new Error(error);
+      }
 
       // Execute tool calls
       const toolResults = await this.handleToolCalls(message.tool_calls!);

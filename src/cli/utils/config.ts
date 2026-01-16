@@ -10,6 +10,7 @@ export interface StudioConfig {
   apiUrl: string;
   outputDir: string;
   apiMode: boolean;
+  maxMessages?: number;
 }
 
 /**
@@ -85,6 +86,7 @@ export async function loadConfig(cwd?: string): Promise<StudioConfig | null> {
       apiUrl: config.apiUrl || 'https://api.studio.skej.com',
       outputDir: config.outputDir || './studio/prompts',
       apiMode: config.apiMode !== undefined ? config.apiMode : false,
+      maxMessages: config.maxMessages !== undefined ? config.maxMessages : 50,
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND') {
@@ -144,6 +146,10 @@ export default {
   // false: Use local exported files (faster, offline)
   // true: Load from API on every execution (always up-to-date)
   apiMode: false,
+
+  // Max Messages - maximum number of messages in the stack before throwing an error
+  // Prevents infinite loops in agent execution (default: 50)
+  maxMessages: 50,
 };
 `;
 
@@ -162,6 +168,7 @@ export interface StudioConfig {
   apiUrl: string;
   outputDir: string;
   apiMode: boolean;
+  maxMessages?: number;
 }
 
 const config: StudioConfig = {
@@ -182,6 +189,10 @@ const config: StudioConfig = {
   // false: Use local exported files (faster, offline)
   // true: Load from API on every execution (always up-to-date)
   apiMode: false,
+
+  // Max Messages - maximum number of messages in the stack before throwing an error
+  // Prevents infinite loops in agent execution (default: 50)
+  maxMessages: 50,
 };
 
 export default config;

@@ -32,12 +32,20 @@ export async function executePrompt(
   options?: InvokeOptions
 ): Promise<ExecutionResult> {
   let manifest: Manifest;
+  let maxMessages: number | undefined;
+
+  // Always try to get maxMessages from config if available
+  try {
+    await initRuntime();
+    const { config } = getRuntime();
+    maxMessages = config.maxMessages;
+  } catch {
+    // Runtime not initialized, will use default (50) in BaseExecutor
+    maxMessages = undefined;
+  }
 
   // If string provided, load from API
   if (typeof promptOrName === 'string') {
-    // Initialize runtime if not already done
-    await initRuntime();
-
     const { config } = getRuntime();
 
     if (!config.apiMode) {
@@ -59,6 +67,7 @@ export async function executePrompt(
     manifest,
     credentials,
     variables,
+    maxMessages,
     ...options,
   });
 
@@ -79,8 +88,10 @@ export async function executePromptFromApi(
   credentials: ProviderCredentials,
   options?: InvokeOptions
 ): Promise<ExecutionResult> {
-  // Initialize runtime if not already done
+  // Initialize runtime
   await initRuntime();
+
+  const { config } = getRuntime();
 
   // Load from API
   const manifest = await loadPrompt(promptName);
@@ -90,6 +101,7 @@ export async function executePromptFromApi(
     manifest,
     credentials,
     variables,
+    maxMessages: config.maxMessages, // Always use from config, defaults to 50 in BaseExecutor
     ...options,
   });
 

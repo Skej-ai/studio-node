@@ -227,6 +227,7 @@ export interface BaseExecutorConfig {
     image_url?: { url: string };
     input_audio?: { data: string; format: string };
   }>;
+  maxMessages?: number; // Maximum messages in stack before throwing error (default: 50)
 }
 
 /**
