@@ -383,19 +383,20 @@ export default class BaseExecutor {
       await this.sendTurnTrace(result.usage || { input_tokens: 0, output_tokens: 0 }, turnDuration, turnCost);
 
       // Check if we need to process tool calls
-      // Enter tool loop if:
-      // 1. Message has tool calls (including built-in tools), OR
-      // 2. toolRouter is provided (for backward compatibility and error handling)
-      const hasToolCalls = this.hasToolCalls(result.message);
       const hasToolRouter = this.toolRouter && Object.keys(this.toolRouter).length > 0;
+
+      // Check if any tool calls are built-in scenario tools (always execute these)
+      const builtInScenarioTools = ['fetch_available_scenarios', 'fetch_scenario_specific_instructions'];
+      const hasBuiltInScenarioTools = result.message.tool_calls?.some(tc => builtInScenarioTools.includes(tc.name)) || false;
+
       let output: any;
 
-      if (!hasToolCalls && !hasToolRouter) {
-        // No tool calls and no tool router, return the text content
-        output = result.message.content;
-      } else {
-        // Process tool calls loop
+      if (hasToolRouter || hasBuiltInScenarioTools) {
+        // Run tool loop if: toolRouter provided (enforces terminating tool) OR built-in scenario tools
         output = await this.runToolLoop(result.message, usage);
+      } else {
+        // No toolRouter - return raw content (playground/debugging mode)
+        output = result.message.content;
       }
 
       return {
