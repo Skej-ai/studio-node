@@ -35,7 +35,7 @@ export interface ToolDefinition {
  * All other fields are provider-specific and passed through
  */
 export interface ModelConfig {
-  provider: 'anthropic' | 'openai' | 'bedrock' | 'deepseek';
+  provider: 'anthropic' | 'openai' | 'bedrock' | 'deepseek' | 'google';
   name: string;
   modelDefKey?: string;
   [key: string]: any; // Provider-specific parameters
@@ -139,6 +139,10 @@ export interface ProviderCredentials {
     secretAccessKey?: string;
   };
   deepseek?: {
+    apiKey: string;
+    dangerouslyAllowBrowser?: boolean;
+  };
+  google?: {
     apiKey: string;
     dangerouslyAllowBrowser?: boolean;
   };
