@@ -1,6 +1,6 @@
 {
   "name": "@skej/studio",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Manifest-based LLM executor for Studio agents with CLI",
   "type": "module",
   "main": "./dist/index.js",
