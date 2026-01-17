@@ -394,8 +394,11 @@ export default class BaseExecutor {
       if (hasToolRouter || hasBuiltInScenarioTools) {
         // Run tool loop if: toolRouter provided (enforces terminating tool) OR built-in scenario tools
         output = await this.runToolLoop(result.message, usage);
+      } else if (result.message.tool_calls && result.message.tool_calls.length > 0) {
+        // No toolRouter but has tool calls - extract args from first tool call (playground mode)
+        output = result.message.tool_calls[0].args;
       } else {
-        // No toolRouter - return raw content (playground/debugging mode)
+        // No toolRouter and no tool calls - return raw content
         output = result.message.content;
       }
 
