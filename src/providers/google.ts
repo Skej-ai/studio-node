@@ -263,7 +263,7 @@ export default class GoogleExecutor extends BaseExecutor {
         functionDef = {
           name: tool.function.name,
           description: tool.function.description || '',
-          parameters: tool.function.parameters
+          parameters: this.#cleanParametersForGemini(tool.function.parameters)
         };
       }
       // Anthropic format: { name, description, input_schema }
@@ -271,7 +271,7 @@ export default class GoogleExecutor extends BaseExecutor {
         functionDef = {
           name: tool.name,
           description: tool.description || '',
-          parameters: tool.input_schema
+          parameters: this.#cleanParametersForGemini(tool.input_schema)
         };
       }
       // Studio format: { name, description, parameters }
@@ -279,7 +279,7 @@ export default class GoogleExecutor extends BaseExecutor {
         functionDef = {
           name: tool.name,
           description: tool.description || '',
-          parameters: tool.parameters
+          parameters: this.#cleanParametersForGemini(tool.parameters)
         };
       }
 
@@ -289,6 +289,66 @@ export default class GoogleExecutor extends BaseExecutor {
     }
 
     return [{ functionDeclarations }];
+  }
+
+  /**
+   * Clean parameters to only include fields Gemini supports
+   * Uses whitelist approach for standard JSON Schema fields
+   */
+  #cleanParametersForGemini(parameters: any): any {
+    if (!parameters || typeof parameters !== 'object') {
+      return parameters;
+    }
+
+    // Handle arrays
+    if (Array.isArray(parameters)) {
+      return parameters.map(item => this.#cleanParametersForGemini(item));
+    }
+
+    // Whitelist of JSON Schema fields that Gemini supports
+    const allowedFields = [
+      'type',
+      'properties',
+      'required',
+      'description',
+      'items',
+      'enum',
+      'format',
+      'minimum',
+      'maximum',
+      'minLength',
+      'maxLength',
+      'pattern',
+      'minItems',
+      'maxItems',
+      'default',
+      'nullable',
+      'anyOf',
+      'allOf',
+      'oneOf'
+    ];
+
+    const cleaned: any = {};
+
+    for (const key of allowedFields) {
+      if (key in parameters) {
+        // Recursively clean nested objects (properties, items, etc.)
+        if (key === 'properties' && typeof parameters[key] === 'object') {
+          cleaned[key] = {};
+          for (const propKey in parameters[key]) {
+            cleaned[key][propKey] = this.#cleanParametersForGemini(parameters[key][propKey]);
+          }
+        } else if (key === 'items' && typeof parameters[key] === 'object') {
+          cleaned[key] = this.#cleanParametersForGemini(parameters[key]);
+        } else if ((key === 'anyOf' || key === 'allOf' || key === 'oneOf') && Array.isArray(parameters[key])) {
+          cleaned[key] = parameters[key].map((item: any) => this.#cleanParametersForGemini(item));
+        } else {
+          cleaned[key] = parameters[key];
+        }
+      }
+    }
+
+    return cleaned;
   }
 
   /**
