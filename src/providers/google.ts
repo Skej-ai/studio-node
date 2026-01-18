@@ -306,6 +306,10 @@ export default class GoogleExecutor extends BaseExecutor {
     }
 
     // Whitelist of JSON Schema fields that Gemini supports
+    // NOTE: Gemini has strict limits on schema complexity. We only include
+    // the most basic fields to avoid "too many states" errors.
+    // Excluded: format, minimum, maximum, minLength, maxLength, pattern, minItems, maxItems
+    // These create constraints that can exceed Gemini's serving limits.
     const allowedFields = [
       'type',
       'properties',
@@ -313,14 +317,6 @@ export default class GoogleExecutor extends BaseExecutor {
       'description',
       'items',
       'enum',
-      'format',
-      'minimum',
-      'maximum',
-      'minLength',
-      'maxLength',
-      'pattern',
-      'minItems',
-      'maxItems',
       'default',
       'nullable',
       'anyOf',
@@ -336,7 +332,11 @@ export default class GoogleExecutor extends BaseExecutor {
         if (key === 'properties' && typeof parameters[key] === 'object') {
           cleaned[key] = {};
           for (const propKey in parameters[key]) {
-            cleaned[key][propKey] = this.#cleanParametersForGemini(parameters[key][propKey]);
+            const cleanedProp = this.#cleanParametersForGemini(parameters[key][propKey]);
+            // Only include property if it has at least one field after cleaning
+            if (cleanedProp && typeof cleanedProp === 'object' && Object.keys(cleanedProp).length > 0) {
+              cleaned[key][propKey] = cleanedProp;
+            }
           }
         } else if (key === 'items' && typeof parameters[key] === 'object') {
           cleaned[key] = this.#cleanParametersForGemini(parameters[key]);
@@ -345,6 +345,19 @@ export default class GoogleExecutor extends BaseExecutor {
         } else {
           cleaned[key] = parameters[key];
         }
+      }
+    }
+
+    // Filter the 'required' array to only include properties that exist in cleaned.properties
+    // This prevents Gemini errors when required references non-existent properties
+    if (cleaned.required && Array.isArray(cleaned.required) && cleaned.properties) {
+      cleaned.required = cleaned.required.filter((propName: string) =>
+        propName in cleaned.properties
+      );
+
+      // Remove required array if it's empty
+      if (cleaned.required.length === 0) {
+        delete cleaned.required;
       }
     }
 
