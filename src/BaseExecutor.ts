@@ -399,17 +399,18 @@ export default class BaseExecutor {
         return;
       }
 
-      const response = await this.studioApiClient.listTenantModels({ per_page: 100 });
+      const response = await this.studioApiClient.listSystemModels();
 
       // Find the pricing for the current model
-      const modelInfo = response.data.find(
-        (m: any) => m.provider === this.provider && m.name === this.model
+      // API returns modelId, but manifest uses name field
+      const modelInfo = response.models.find(
+        (m: any) => m.provider === this.provider && m.modelId === this.model
       );
 
       if (modelInfo && modelInfo.pricing) {
         this.modelPricing = {
           provider: modelInfo.provider,
-          name: modelInfo.name,
+          name: modelInfo.modelId,
           inputTokensPer1M: modelInfo.pricing.inputTokensPer1M,
           outputTokensPer1M: modelInfo.pricing.outputTokensPer1M,
           currency: modelInfo.pricing.currency
@@ -429,7 +430,7 @@ export default class BaseExecutor {
           }
         }
 
-        this.log(`[BaseExecutor] Fetched and cached pricing for ${this.provider}/${this.model}: $${this.modelPricing.inputTokensPer1M}/1M input, $${this.modelPricing.outputTokensPer1M}/1M output`);
+        this.log(`[BaseExecutor] Fetched and cached pricing for ${this.provider}/${modelInfo.modelId}: $${this.modelPricing.inputTokensPer1M}/1M input, $${this.modelPricing.outputTokensPer1M}/1M output`);
       } else {
         this.log(`[BaseExecutor] No pricing found for ${this.provider}/${this.model}, using default`);
       }
