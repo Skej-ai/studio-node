@@ -132,6 +132,7 @@ export class StudioExecutor {
       credentials: this.credentials,
       variables,
       toolRouter,
+      studioApiClient: this.client, // Pass API client for model pricing
       ...enrichedOptions,
     });
 

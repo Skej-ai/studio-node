@@ -29,7 +29,8 @@ import type {
   ModelConfig,
   ToolRouter,
   ToolCallCallback,
-  TracingConfig
+  TracingConfig,
+  ModelPricing
 } from './types.js';
 import { sendTrace } from './tracing.js';
 
@@ -54,6 +55,9 @@ export default class BaseExecutor {
   protected tracing?: TracingConfig;
   protected files?: Array<any>;
   protected maxMessages: number;
+  protected studioApiClient?: any;
+  protected modelPricing?: ModelPricing;
+  protected pricingFetchPromise?: Promise<void>;
 
   constructor({
     // Core execution
@@ -69,6 +73,7 @@ export default class BaseExecutor {
     tracing,           // Tracing configuration for observability
     files,             // Files (images, audio) for vision/audio prompts
     maxMessages = 50,  // Maximum messages before throwing error
+    studioApiClient,   // Optional Studio API client for fetching model pricing
 
     // Internal (passed by factory for model switching)
     executorFactory
@@ -89,6 +94,7 @@ export default class BaseExecutor {
     this.log = log;
     this.files = files;
     this.maxMessages = maxMessages;
+    this.studioApiClient = studioApiClient;
 
     // Messages
     this.messages = messages;
@@ -125,6 +131,11 @@ export default class BaseExecutor {
 
     // Use tools from manifest - process to move reasoning fields to top
     this.allToolDefs = this.processToolDefinitions(manifest.tools);
+
+    // Load model pricing (from cache or API) in background (non-blocking)
+    if (this.studioApiClient) {
+      this.pricingFetchPromise = this.loadModelPricing();
+    }
   }
 
   /**
@@ -334,11 +345,112 @@ export default class BaseExecutor {
   }
 
   /**
+   * Get cache file path for model pricing
+   */
+  protected getPricingCachePath(): string | null {
+    // Only available in Node.js
+    if (typeof process === 'undefined' || !process.env) {
+      return null;
+    }
+
+    const tmpdir = process.env.TMPDIR || process.env.TEMP || '/tmp';
+    const cacheKey = `skej-model-pricing-${this.provider}-${this.model.replace(/\//g, '-')}.json`;
+
+    // Dynamically import path if available
+    try {
+      const path = require('path');
+      return path.join(tmpdir, cacheKey);
+    } catch {
+      // Fallback if path module not available
+      return `${tmpdir}/${cacheKey}`;
+    }
+  }
+
+  /**
+   * Load model pricing from cache or fetch from Studio API
+   * Cache TTL: 24 hours
+   */
+  protected async loadModelPricing(): Promise<void> {
+    const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+    try {
+      const cachePath = this.getPricingCachePath();
+
+      // Try to load from cache first
+      if (cachePath) {
+        try {
+          const fs = await import('fs/promises');
+          const cacheData = await fs.readFile(cachePath, 'utf-8');
+          const cached = JSON.parse(cacheData);
+
+          // Check if cache is still fresh
+          if (cached.timestamp && cached.pricing && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+            this.modelPricing = cached.pricing;
+            this.log(`[BaseExecutor] Loaded pricing from cache for ${this.provider}/${this.model}: $${cached.pricing.inputTokensPer1M}/1M input, $${cached.pricing.outputTokensPer1M}/1M output`);
+            return;
+          }
+        } catch (cacheError) {
+          // Cache miss or read error, continue to fetch
+        }
+      }
+
+      // Cache miss or stale - fetch from API
+      if (!this.studioApiClient) {
+        return;
+      }
+
+      const response = await this.studioApiClient.listTenantModels({ per_page: 100 });
+
+      // Find the pricing for the current model
+      const modelInfo = response.data.find(
+        (m: any) => m.provider === this.provider && m.name === this.model
+      );
+
+      if (modelInfo && modelInfo.pricing) {
+        this.modelPricing = {
+          provider: modelInfo.provider,
+          name: modelInfo.name,
+          inputTokensPer1M: modelInfo.pricing.inputTokensPer1M,
+          outputTokensPer1M: modelInfo.pricing.outputTokensPer1M,
+          currency: modelInfo.pricing.currency
+        };
+
+        // Cache the pricing
+        if (cachePath) {
+          try {
+            const fs = await import('fs/promises');
+            const cacheData = JSON.stringify({
+              timestamp: Date.now(),
+              pricing: this.modelPricing
+            });
+            await fs.writeFile(cachePath, cacheData, 'utf-8');
+          } catch (writeError) {
+            // Ignore cache write errors
+          }
+        }
+
+        this.log(`[BaseExecutor] Fetched and cached pricing for ${this.provider}/${this.model}: $${this.modelPricing.inputTokensPer1M}/1M input, $${this.modelPricing.outputTokensPer1M}/1M output`);
+      } else {
+        this.log(`[BaseExecutor] No pricing found for ${this.provider}/${this.model}, using default`);
+      }
+    } catch (error: any) {
+      this.log(`[BaseExecutor] Failed to load model pricing: ${error.message}, using default`);
+    }
+  }
+
+  /**
    * Calculate cost in USD based on tokens and model
-   * Override this in provider adapters for accurate pricing
+   * Uses pricing from cache/API if available, otherwise falls back to default
    */
   protected calculateCost(inputTokens: number, outputTokens: number): number {
-    // Default rough pricing (can be overridden by providers)
+    // Use fetched/cached pricing if available
+    if (this.modelPricing) {
+      const inputCost = (inputTokens / 1_000_000) * this.modelPricing.inputTokensPer1M;
+      const outputCost = (outputTokens / 1_000_000) * this.modelPricing.outputTokensPer1M;
+      return inputCost + outputCost;
+    }
+
+    // Default rough pricing
     // Using Claude Sonnet pricing as default: $3/MTok input, $15/MTok output
     const inputCost = (inputTokens / 1_000_000) * 3;
     const outputCost = (outputTokens / 1_000_000) * 15;
@@ -353,6 +465,11 @@ export default class BaseExecutor {
     try {
       // Validate variables
       this.validateVariables();
+
+      // Wait for pricing fetch to complete (non-blocking in constructor, but wait here before calculating costs)
+      if (this.pricingFetchPromise) {
+        await this.pricingFetchPromise;
+      }
 
       // Build initial messages if not provided
       if (this.messages.length === 0) {

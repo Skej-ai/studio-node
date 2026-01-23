@@ -71,5 +71,6 @@ export type {
   ExecutionResult,
   BaseExecutorConfig,
   InvokeOptions,
-  VariableDefinition
+  VariableDefinition,
+  ModelPricing
 } from './types.js';

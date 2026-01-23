@@ -213,6 +213,17 @@ export interface TracingConfig {
 }
 
 /**
+ * Model pricing information
+ */
+export interface ModelPricing {
+  provider: string;
+  name: string;
+  inputTokensPer1M: number;
+  outputTokensPer1M: number;
+  currency: string;
+}
+
+/**
  * Base executor configuration
  */
 export interface BaseExecutorConfig {
@@ -232,6 +243,7 @@ export interface BaseExecutorConfig {
     input_audio?: { data: string; format: string };
   }>;
   maxMessages?: number; // Maximum messages in stack before throwing error (default: 50)
+  studioApiClient?: any; // Optional Studio API client for fetching model pricing
 }
 
 /**
