@@ -33,12 +33,14 @@ export async function executePrompt(
 ): Promise<ExecutionResult> {
   let manifest: Manifest;
   let maxMessages: number | undefined;
+  let studioApiClient: any = undefined;
 
-  // Always try to get maxMessages from config if available
+  // Always try to get maxMessages and apiClient from config if available
   try {
     await initRuntime();
-    const { config } = getRuntime();
+    const { config, client } = getRuntime();
     maxMessages = config.maxMessages;
+    studioApiClient = client; // Pass API client for model pricing
   } catch {
     // Runtime not initialized, will use default (50) in BaseExecutor
     maxMessages = undefined;
@@ -68,6 +70,7 @@ export async function executePrompt(
     credentials,
     variables,
     maxMessages,
+    studioApiClient, // Pass API client for model pricing
     ...options,
   });
 
@@ -91,7 +94,7 @@ export async function executePromptFromApi(
   // Initialize runtime
   await initRuntime();
 
-  const { config } = getRuntime();
+  const { config, client } = getRuntime();
 
   // Load from API
   const manifest = await loadPrompt(promptName);
@@ -102,6 +105,7 @@ export async function executePromptFromApi(
     credentials,
     variables,
     maxMessages: config.maxMessages, // Always use from config, defaults to 50 in BaseExecutor
+    studioApiClient: client, // Pass API client for model pricing
     ...options,
   });
 
