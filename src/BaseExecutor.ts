@@ -44,6 +44,7 @@ export default class BaseExecutor {
   protected onToolCall?: ToolCallCallback;
   protected cancelled: boolean;
   protected toolErrorCount: Record<string, number>;
+  protected forceNextTool?: string;
   protected executorFactory?: (config: BaseExecutorConfig) => Promise<any>;
   protected instructions: string;
   protected modelConfig: any;
@@ -58,6 +59,7 @@ export default class BaseExecutor {
   protected studioApiClient?: any;
   protected modelPricing?: ModelPricing;
   protected pricingFetchPromise?: Promise<void>;
+  protected initialToolChoice: 'auto' | 'required' | 'none' | string;
 
   constructor({
     // Core execution
@@ -74,6 +76,7 @@ export default class BaseExecutor {
     files,             // Files (images, audio) for vision/audio prompts
     maxMessages = 50,  // Maximum messages before throwing error
     studioApiClient,   // Optional Studio API client for fetching model pricing
+    initialToolChoice = 'required', // Initial tool choice for first turn
 
     // Internal (passed by factory for model switching)
     executorFactory
@@ -95,6 +98,7 @@ export default class BaseExecutor {
     this.files = files;
     this.maxMessages = maxMessages;
     this.studioApiClient = studioApiClient;
+    this.initialToolChoice = initialToolChoice;
 
     // Messages
     this.messages = messages;
@@ -105,6 +109,7 @@ export default class BaseExecutor {
     // State
     this.cancelled = false;
     this.toolErrorCount = {};
+    this.forceNextTool = undefined;
 
     // Tracing
     this.tracing = tracing;
@@ -266,6 +271,24 @@ export default class BaseExecutor {
   cancel(): boolean {
     this.cancelled = true;
     return true;
+  }
+
+  /**
+   * Convert tool choice string to OpenAI format
+   * - 'auto' | 'required' | 'none' -> pass through
+   * - 'tool_name' -> { type: 'function', function: { name: 'tool_name' } }
+   */
+  protected normalizeToolChoice(toolChoice: 'auto' | 'required' | 'none' | string): any {
+    // Standard options - pass through
+    if (toolChoice === 'auto' || toolChoice === 'required' || toolChoice === 'none') {
+      return toolChoice;
+    }
+
+    // Specific tool name - convert to OpenAI format
+    return {
+      type: 'function',
+      function: { name: toolChoice }
+    };
   }
 
   /**
@@ -477,11 +500,16 @@ export default class BaseExecutor {
         this.messages = this.buildInitialMessages();
       }
 
-      // First LLM invocation - always require tool call
+      // First LLM invocation
       const turnStart = Date.now();
+
+      // Convert initialToolChoice to OpenAI format
+      // Provider adapters will translate to their specific format
+      const toolChoice = this.normalizeToolChoice(this.initialToolChoice);
+
       const result = await this.invoke(this.messages, {
         tools: this.allToolDefs,
-        tool_choice: 'required'
+        tool_choice: toolChoice
       });
       const turnDuration = Date.now() - turnStart;
 
@@ -608,6 +636,16 @@ export default class BaseExecutor {
       // Execute tool calls
       const toolResults = await this.handleToolCalls(message.tool_calls!);
 
+      // Check if any tool result wants to force a specific tool on next turn
+      this.forceNextTool = undefined;
+      for (const result of toolResults) {
+        if (result.forceNextTool) {
+          this.log(`[BaseExecutor] Tool result requests forcing next tool: ${result.forceNextTool}`);
+          this.forceNextTool = result.forceNextTool;
+          break; // Only honor the first one
+        }
+      }
+
       // Add tool results to messages
       for (const result of toolResults) {
         this.messages.push({
@@ -659,10 +697,21 @@ export default class BaseExecutor {
 
       // Next LLM invocation
       // Use 'required' tool_choice to ensure agent always calls a tool in the loop
+      // Unless a tool result specified forceNextTool
       const turnStart = Date.now();
+      let toolChoiceStr: string = 'required';
+
+      if (this.forceNextTool) {
+        toolChoiceStr = this.forceNextTool;
+        this.log(`[BaseExecutor] Forcing tool choice: ${this.forceNextTool}`);
+      }
+
+      // Convert to OpenAI format - provider adapters will translate
+      const toolChoice = this.normalizeToolChoice(toolChoiceStr);
+
       const result = await this.invoke(this.messages, {
         tools: this.allToolDefs,
-        tool_choice: 'required'
+        tool_choice: toolChoice
       });
       const turnDuration = Date.now() - turnStart;
 
@@ -765,9 +814,13 @@ export default class BaseExecutor {
         }
       }
 
+      // Extract forceNextTool if present in the tool result
+      const forceNextTool = toolResult?.forceNextTool;
+
       results.push({
         tool_call_id: toolCall.id,
-        content: toolResult
+        content: toolResult,
+        forceNextTool: forceNextTool
       });
     }
 

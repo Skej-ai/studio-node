@@ -863,4 +863,249 @@ describe('BaseExecutor', () => {
       expect(onToolCall).not.toHaveBeenCalled();
     });
   });
+
+  describe('initialToolChoice', () => {
+    it('should use default tool_choice "required"', async () => {
+      const executor = new TestExecutor({
+        manifest: mockManifest,
+        variables: { assistantName: 'Claude', task: 'testing' },
+        toolRouter: mockToolRouter,
+        credentials: mockCredentials
+      });
+
+      const invokeSpy = vi.spyOn(executor, 'invoke').mockResolvedValue({
+        message: {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            { id: 'call_1', name: 'finish_agent_run', args: { result: 'done' } }
+          ]
+        },
+        usage: { input_tokens: 10, output_tokens: 5 }
+      });
+
+      await executor.execute();
+
+      expect(invokeSpy).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({
+          tool_choice: 'required'
+        })
+      );
+    });
+
+    it('should use "auto" when specified', async () => {
+      const executor = new TestExecutor({
+        manifest: mockManifest,
+        variables: { assistantName: 'Claude', task: 'testing' },
+        toolRouter: mockToolRouter,
+        credentials: mockCredentials,
+        initialToolChoice: 'auto'
+      });
+
+      const invokeSpy = vi.spyOn(executor, 'invoke').mockResolvedValue({
+        message: {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            { id: 'call_1', name: 'finish_agent_run', args: { result: 'done' } }
+          ]
+        },
+        usage: { input_tokens: 10, output_tokens: 5 }
+      });
+
+      await executor.execute();
+
+      expect(invokeSpy).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({
+          tool_choice: 'auto'
+        })
+      );
+    });
+
+    it('should force specific tool when tool name provided', async () => {
+      const executor = new TestExecutor({
+        manifest: mockManifest,
+        variables: { assistantName: 'Claude', task: 'testing' },
+        toolRouter: mockToolRouter,
+        credentials: mockCredentials,
+        initialToolChoice: 'test_tool'
+      });
+
+      const invokeSpy = vi.spyOn(executor, 'invoke').mockResolvedValue({
+        message: {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            { id: 'call_1', name: 'finish_agent_run', args: { result: 'done' } }
+          ]
+        },
+        usage: { input_tokens: 10, output_tokens: 5 }
+      });
+
+      await executor.execute();
+
+      expect(invokeSpy).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({
+          tool_choice: {
+            type: 'function',
+            function: { name: 'test_tool' }
+          }
+        })
+      );
+    });
+  });
+
+  describe('forceNextTool', () => {
+    it('should force specific tool on next turn when tool result includes forceNextTool', async () => {
+      const toolRouterWithForce = {
+        test_tool: {
+          execute: vi.fn(async () => ({
+            success: true,
+            forceNextTool: 'finish_agent_run'
+          }))
+        }
+      };
+
+      const executor = new TestExecutor({
+        manifest: mockManifest,
+        variables: { assistantName: 'Claude', task: 'testing' },
+        toolRouter: toolRouterWithForce,
+        credentials: mockCredentials
+      });
+
+      let invocationCount = 0;
+      const invokeSpy = vi.spyOn(executor, 'invoke').mockImplementation(async (messages, options) => {
+        invocationCount++;
+
+        if (invocationCount === 1) {
+          // First turn - call test_tool
+          return {
+            message: {
+              role: 'assistant',
+              content: '',
+              tool_calls: [
+                { id: 'call_1', name: 'test_tool', args: { input: 'test' } }
+              ]
+            },
+            usage: { input_tokens: 50, output_tokens: 25 }
+          };
+        } else {
+          // Second turn - should be forced to call finish_agent_run
+          expect(options?.tool_choice).toEqual({
+            type: 'function',
+            function: { name: 'finish_agent_run' }
+          });
+
+          return {
+            message: {
+              role: 'assistant',
+              content: '',
+              tool_calls: [
+                { id: 'call_2', name: 'finish_agent_run', args: { result: 'done' } }
+              ]
+            },
+            usage: { input_tokens: 60, output_tokens: 30 }
+          };
+        }
+      });
+
+      const result = await executor.execute();
+
+      expect(result.ok).toBe(true);
+      expect(invokeSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('should use "required" if no forceNextTool specified', async () => {
+      const executor = new TestExecutor({
+        manifest: mockManifest,
+        variables: { assistantName: 'Claude', task: 'testing' },
+        toolRouter: mockToolRouter,
+        credentials: mockCredentials
+      });
+
+      let invocationCount = 0;
+      const invokeSpy = vi.spyOn(executor, 'invoke').mockImplementation(async (messages, options) => {
+        invocationCount++;
+
+        if (invocationCount === 1) {
+          return {
+            message: {
+              role: 'assistant',
+              content: '',
+              tool_calls: [
+                { id: 'call_1', name: 'test_tool', args: { input: 'test' } }
+              ]
+            },
+            usage: { input_tokens: 50, output_tokens: 25 }
+          };
+        } else {
+          // Second turn - should default to 'required'
+          expect(options?.tool_choice).toBe('required');
+
+          return {
+            message: {
+              role: 'assistant',
+              content: '',
+              tool_calls: [
+                { id: 'call_2', name: 'finish_agent_run', args: { result: 'done' } }
+              ]
+            },
+            usage: { input_tokens: 60, output_tokens: 30 }
+          };
+        }
+      });
+
+      const result = await executor.execute();
+
+      expect(result.ok).toBe(true);
+      expect(invokeSpy).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('normalizeToolChoice', () => {
+    let executor: TestExecutor;
+
+    beforeEach(() => {
+      executor = new TestExecutor({
+        manifest: mockManifest,
+        variables: { assistantName: 'Claude', task: 'testing' },
+        toolRouter: mockToolRouter,
+        credentials: mockCredentials
+      });
+    });
+
+    it('should pass through "auto"', () => {
+      const result = executor['normalizeToolChoice']('auto');
+      expect(result).toBe('auto');
+    });
+
+    it('should pass through "required"', () => {
+      const result = executor['normalizeToolChoice']('required');
+      expect(result).toBe('required');
+    });
+
+    it('should pass through "none"', () => {
+      const result = executor['normalizeToolChoice']('none');
+      expect(result).toBe('none');
+    });
+
+    it('should convert tool name to OpenAI format', () => {
+      const result = executor['normalizeToolChoice']('my_tool');
+      expect(result).toEqual({
+        type: 'function',
+        function: { name: 'my_tool' }
+      });
+    });
+
+    it('should convert any other string to OpenAI format', () => {
+      const result = executor['normalizeToolChoice']('analyze_input');
+      expect(result).toEqual({
+        type: 'function',
+        function: { name: 'analyze_input' }
+      });
+    });
+  });
 });

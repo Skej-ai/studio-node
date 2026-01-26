@@ -119,6 +119,8 @@ export interface ToolCall {
 export interface ToolResult {
   tool_call_id: string;
   content: any;
+  // Optional: Force a specific tool on the next turn
+  forceNextTool?: string;
 }
 
 /**
@@ -244,6 +246,7 @@ export interface BaseExecutorConfig {
   }>;
   maxMessages?: number; // Maximum messages in stack before throwing error (default: 50)
   studioApiClient?: any; // Optional Studio API client for fetching model pricing
+  initialToolChoice?: 'auto' | 'required' | 'none' | string; // Initial tool choice for first turn (default: 'required'). Can be 'required', 'auto', 'none', or a specific tool name
 }
 
 /**
@@ -251,5 +254,8 @@ export interface BaseExecutorConfig {
  */
 export interface InvokeOptions {
   tools?: ToolDefinition[];
-  tool_choice?: 'auto' | 'required' | 'none';
+  tool_choice?: 'auto' | 'required' | 'none' | {
+    type: 'function';
+    function: { name: string };
+  };
 }
